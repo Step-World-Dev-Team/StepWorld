@@ -8,6 +8,7 @@
 import Foundation
 import FirebaseAuth
 
+// initiates variables used for authentication
 struct AuthDataResultModel {
     let uid: String
     let email: String?
@@ -22,9 +23,11 @@ struct AuthDataResultModel {
 
 final class AuthenticationManager {
     
+    // globalizes the AuthenticationManager
     static let shared = AuthenticationManager()
     private init() {}
     
+    // function to get user that is associated with user info
     func getAuthenticatedUser() throws -> AuthDataResultModel {
         guard let user = Auth.auth().currentUser else {
             throw URLError(.badServerResponse)

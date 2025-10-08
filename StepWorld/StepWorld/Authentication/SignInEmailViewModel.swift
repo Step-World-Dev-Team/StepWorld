@@ -29,4 +29,5 @@ final class SignInEmailViewModel: ObservableObject {
     }
     
     // SignOut function will go here
+    // along with any other functions
 }
