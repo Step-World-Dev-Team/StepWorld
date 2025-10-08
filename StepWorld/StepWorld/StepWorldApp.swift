@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct StepWorldApp: App {
+    
+    @StateObject private var steps = StepManager()
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(steps)
         }
     }
 }
