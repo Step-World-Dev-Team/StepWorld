@@ -9,7 +9,7 @@ import SwiftUI
 import Combine
 
 struct ContentView: View {
-    
+
     @StateObject private var viewModel = SignInEmailViewModel()
     @State private var isSignedIn = false
     

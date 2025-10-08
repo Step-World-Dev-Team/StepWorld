@@ -11,11 +11,13 @@ import Firebase
 @main
 struct StepWorldApp: App {
     
+    @StateObject private var steps = StepManager()
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(steps)
         }
     }
     
