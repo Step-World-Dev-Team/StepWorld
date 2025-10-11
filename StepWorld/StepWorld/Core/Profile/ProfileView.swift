@@ -2,7 +2,7 @@
 //  ProfileView.swift
 //  StepWorld
 //
-//  Created by Isai soria on 10/7/25.
+//  Created by Isai Soria on 10/7/25.
 //
 
 import Foundation
@@ -13,10 +13,12 @@ import Combine
 @MainActor
 final class ProfileViewModel: ObservableObject {
     
-    @Published private(set) var user: AuthDataResultModel? = nil
+    @Published private(set) var user: DBUser? = nil
     
-    func loadCurrentUser() throws {
-        self.user = try AuthenticationManager.shared.getAuthenticatedUser()
+    // attempts to pull user data from authentication & user managers
+    func loadCurrentUser() async throws {
+        let authDataResult = try AuthenticationManager.shared.getAuthenticatedUser()
+        self.user = try await UserManager.shared.getUser(userId: authDataResult.uid)
         }
 }
 
@@ -29,14 +31,25 @@ struct ProfileView: View {
     var body: some View {
         List {
             if let user = viewModel.user {
-                Text("Userid: \(user.uid)")
+                
+                Text("UserId: \(user.userId)")
+                
+                // will not display anything since there is no email value currently in DB
+                if let email = user.email {
+                    Text("Email: \(email.description.capitalized)")
+                }
+                
+                if let name = user.name {
+                    Text("Name: \(name.capitalized)")
+                }
+                 
             }
             
             // more fields can be added here
             
         }
-        .onAppear{
-            try? viewModel.loadCurrentUser()
+        .task{
+            try? await viewModel.loadCurrentUser()
         }
         .navigationTitle("Profile")
         .toolbar {

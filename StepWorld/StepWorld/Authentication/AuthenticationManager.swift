@@ -2,7 +2,7 @@
 //  Authentication Manager.swift
 //  StepWorld
 //
-//  Created by Isai soria on 10/6/25.
+//  Created by Isai Soria on 10/6/25.
 //
 
 import Foundation
@@ -13,11 +13,13 @@ struct AuthDataResultModel {
     let uid: String
     let email: String?
     let photoURL: String?
+    let name: String?
     
     init(user: User) {
         self.uid = user.uid
         self.email = user.email
         self.photoURL = user.photoURL?.absoluteString
+        self.name = user.displayName
     }
 }
 
