@@ -45,7 +45,7 @@ struct InteractiveGIFMapView: View {
                         //Color.clear
                         Color.blue.opacity(0.3) // temporary for placement debugging, change to clear when done
                     }
-                    .frame(width: 200, height: 300)
+                    .frame(width: 200, height: 200)
                     .position(x: geometry.size.width * 0.95 + 0.75 * geometry.size.width,
                               y: geometry.size.height * 0.9 - 0.75 * geometry.size.height)
                     Button {
