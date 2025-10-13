@@ -67,21 +67,32 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
                     .background(Color.blue)
                     .cornerRadius(10)
-                
-                NavigationLink(destination: MapView()) {
-                    Text("Go To Map")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(height: 55)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.blue)
-                        .cornerRadius(10)
-                }
             }
+            
+            NavigationLink(destination: MapView()) {
+                Text("Go To Map")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(height: 55)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .cornerRadius(10)
+            }
+            
+            NavigationLink(destination: InteractiveGIFMapView()) {
+                Text("Go To interactive Map")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(height: 55)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.green)
+                    .cornerRadius(10)
+            }
+        }
             .padding()
             }
     }
-}
+
     
     #Preview {
         ContentView()
