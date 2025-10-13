@@ -84,7 +84,7 @@ struct InteractiveGIFMapView: View {
                 )
             }
 
-            // MARK: - Top-right Gear button, for Andre to edit?
+            // Top-right Gear button, for Andre to edit!
             VStack {
                 HStack {
                     Spacer()
@@ -102,7 +102,7 @@ struct InteractiveGIFMapView: View {
                 Spacer()
             }
 
-            // MARK: - Bottom bar with 4 buttons, need to app icons, decide what we would like
+            //Bottom bar with 4 buttons, need to app icons, decide what we would like
             VStack {
                 Spacer()
                 HStack(spacing: 0) {
