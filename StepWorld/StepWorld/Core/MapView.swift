@@ -2,7 +2,8 @@
 //  ContentView.swift
 //  StepWorld
 //
-//  Created by Isai soria on 10/2/25.
+//  Created by Isai Soria on 10/2/25.
+//  Modified by: Anali Cardoza
 //
 
 import SwiftUI
@@ -15,6 +16,7 @@ struct MapView: View {
     @State private var lastOffset = CGSize.zero
     @State private var scale: CGFloat = 1.0
     @State private var lastScale: CGFloat = 1.0
+    
     
     var body: some View {
         ZStack {
@@ -90,4 +92,7 @@ struct MapView: View {
             }
         }
     }
+}
+#Preview {
+    MapView()
 }

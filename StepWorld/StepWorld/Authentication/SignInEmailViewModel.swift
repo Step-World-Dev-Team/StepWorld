@@ -2,7 +2,7 @@
 //  SignInEmailViewModel.swift
 //  StepWorld
 //
-//  Created by Isai soria on 10/6/25.
+//  Created by Isai Soria on 10/6/25.
 //
 
 import Foundation
