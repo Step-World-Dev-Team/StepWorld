@@ -110,10 +110,54 @@ struct InteractiveGIFMapView: View {
                         Button(action: {
                             print("Bottom button \(index) tapped")
                         }) {
-                            Image(systemName: "circle.fill")
-                                .font(.system(size: 24))
+                            
+                            switch index {
+                            case 1:
+                                Image("home_icon") // your shop icon
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 100, height: 100)
+                                    .offset(x: 0, y: 46)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                            case 2:
+                                Image("money_icon 1")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 100, height: 100)
+                                    .offset(x: 0, y: 46)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                            case 3:
+                                Image("profile_icon")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 100, height: 100)
+                                    .offset(x: 0, y: 46)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                            case 4:
+                                Image("gear_icon")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 100, height: 100)
+                                    .offset(x: 0, y: 46)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                            default:
+                                EmptyView()
+                            }
+                            /*Image("money_icon 1")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 100, height: 100)
+                                .offset(x: 0, y: 46)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
+                            */
+                                //.font(.system(size: 24))
+                                //.foregroundColor(.white)
+                                //.frame(maxWidth: .infinity)
                         }
                     }
                 }

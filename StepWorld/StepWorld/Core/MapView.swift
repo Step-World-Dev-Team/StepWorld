@@ -93,6 +93,6 @@ struct MapView: View {
         }
     }
 }
-    #Preview {
-           MapView()
+#Preview {
+    MapView()
 }
