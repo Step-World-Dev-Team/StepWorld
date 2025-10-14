@@ -17,6 +17,7 @@ struct MapView: View {
     @State private var scale: CGFloat = 1.0
     @State private var lastScale: CGFloat = 1.0
     
+    
     var body: some View {
         ZStack {
             Color.green.ignoresSafeArea() // Optional background color behind GIF

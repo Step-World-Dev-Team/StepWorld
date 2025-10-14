@@ -9,7 +9,7 @@ import SwiftUI
 import Combine
 
 struct ContentView: View {
-
+    
     @StateObject private var viewModel = SignInEmailViewModel()
     @State private var isSignedIn = false
     
@@ -68,15 +68,33 @@ struct ContentView: View {
                     .background(Color.blue)
                     .cornerRadius(10)
             }
+            
+            NavigationLink(destination: MapView()) {
+                Text("Go To Map")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(height: 55)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .cornerRadius(10)
+            }
+            
+            NavigationLink(destination: InteractiveGIFMapView()) {
+                Text("Go To interactive Map")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(height: 55)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.green)
+                    .cornerRadius(10)
+            }
         }
-        .padding()
-        
-        
+            .padding()
+            }
     }
+
     
+    #Preview {
+        ContentView()
+    }
 
-}
-
-#Preview {
-    ContentView()
-}
