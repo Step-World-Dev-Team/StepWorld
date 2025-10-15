@@ -291,16 +291,13 @@
 				CODE_SIGN_ENTITLEMENTS = StepWorld/StepWorld.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-<<<<<<< HEAD
 				DEVELOPMENT_TEAM = RS6RT5T754;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = StepWorld/Info.plist;
-=======
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
->>>>>>> origin/fixing-andres-problem
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app uses Health data to show your daily steps.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app writes your activity data to Health.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -334,16 +331,13 @@
 				CODE_SIGN_ENTITLEMENTS = StepWorld/StepWorld.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-<<<<<<< HEAD
 				DEVELOPMENT_TEAM = RS6RT5T754;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = StepWorld/Info.plist;
-=======
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
->>>>>>> origin/fixing-andres-problem
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app uses Health data to show your daily steps.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app writes your activity data to Health.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

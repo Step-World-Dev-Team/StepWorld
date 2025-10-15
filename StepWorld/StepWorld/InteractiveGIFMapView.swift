@@ -85,22 +85,18 @@ struct InteractiveGIFMapView: View {
             }
 
             // Top-right Gear button, for Andre to edit!
+            
             VStack {
                 HStack {
                     Spacer()
-                    Button(action: {
-                        print("Top-right button tapped")
-                    }) {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 24))
-                            .padding()
-                            .background(Color.white.opacity(0.8))
-                            .clipShape(Circle())
-                    }
-                    .padding()
+                           
+                    StatsDisplay()
                 }
+                .padding()
+                
                 Spacer()
             }
+            
 
             //Bottom bar with 4 buttons, need to app icons, decide what we would like
             VStack {
@@ -187,4 +183,5 @@ struct InteractiveGIFMapView: View {
 
 #Preview {
     InteractiveGIFMapView()
+        .environmentObject(StepManager())
 }

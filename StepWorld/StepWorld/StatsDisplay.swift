@@ -12,39 +12,39 @@ struct StatsDisplay: View {
     
     var body: some View {
             //might have to correct the alignment...
-        HStack {
-            VStack {
+        ZStack {
+            Image("Empty_Plank2")
+                .resizable()
+                .frame(width: 140, height: 100)
+            
+            HStack {
                 VStack {
-                    HStack {
-                        Image("Boot")
-                            .resizable()
-                            .interpolation(.none)   // keeps pixel art sharp
-                            .frame(width: 25, height: 25) // smaller size
+                    VStack {
+                        HStack {
+                            Image("Boot")
+                                .resizable()
+                                .interpolation(.none)   // keeps pixel art sharp
+                                .frame(width: 25, height: 25) // smaller size
                             
-                        Text(steps.todaySteps.formattedString())
-                            .font(.custom("Press Start 2P", size: 13))
-                    }
-                    HStack {
-                        Image("Coin")
-                            .interpolation(.none)
-                            .padding(.leading, 5)
+                            Text(steps.todaySteps.formattedString())
+                                .font(.custom("Press Start 2P", size: 13))
+                        }
+                        HStack {
+                            Image("Coin")
+                                .interpolation(.none)
+                                .padding(.leading, 5)
                             
-                        Text(steps.money.formattedString())
-                            .font(.custom("Press Start 2P", size: 13))
-                            .padding(.leading, 6)
+                            Text(steps.money.formattedString())
+                                .font(.custom("Press Start 2P", size: 13))
+                                .padding(.leading, 6)
+                        }
                     }
+                    .padding()
                 }
-                .padding()
             }
-        }
-        .font(.callout.monospacedDigit())
-        .padding(10)
-        .background(.ultraThinMaterial) // nice blur
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(radius: 4)
-        .accessibilityElement(children: .combine)
-        .onAppear {
-            steps.fetchTodaySteps()
+            .onAppear {
+                steps.fetchTodaySteps()
+            }
         }
 
     }
