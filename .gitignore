@@ -1,0 +1,9 @@
+# macOS system files
+.DS_Store
+
+# Xcode user-specific files
+*.xcuserdatad
+*.xcworkspace/xcuserdata
+
+# Derived data (optional)
+DerivedData/
