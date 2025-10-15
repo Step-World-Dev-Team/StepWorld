@@ -83,9 +83,16 @@ struct InteractiveGIFMapView: View {
                     )
                 )
             }
+            .overlay(alignment: .topTrailing) {
+                StatsDisplay()
+                    .padding(.top, 4)
+                    .padding(.trailing, 6)
+            }
+            .navigationBarBackButtonHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
 
             // Top-right Gear button, for Andre to edit!
-            
+            /*
             VStack {
                 HStack {
                     Spacer()
@@ -96,6 +103,7 @@ struct InteractiveGIFMapView: View {
                 
                 Spacer()
             }
+             */
             
 
             //Bottom bar with 4 buttons, need to app icons, decide what we would like
@@ -103,28 +111,12 @@ struct InteractiveGIFMapView: View {
                 Spacer()
                 HStack(spacing: 0) {
                     ForEach(1...4, id: \.self) { index in
-                        Button(action: {
-                            print("Bottom button \(index) tapped")
-                        }) {
-                            
-                            switch index {
-                            case 1:
-                                Image("home_icon") // your shop icon
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 100, height: 100)
-                                    .offset(x: 0, y: 46)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                            case 2:
-                                Image("money_icon 1")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 100, height: 100)
-                                    .offset(x: 0, y: 46)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                            case 3:
+                        if index == 3 {
+                            NavigationLink{
+                                ProfileView()
+                                    .toolbar(.visible, for: .navigationBar)
+                                    .navigationBarBackButtonHidden(false)
+                            } label: {
                                 Image("profile_icon")
                                     .resizable()
                                     .scaledToFit()
@@ -132,17 +124,42 @@ struct InteractiveGIFMapView: View {
                                     .offset(x: 0, y: 46)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
-                            case 4:
-                                Image("gear_icon")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 100, height: 100)
-                                    .offset(x: 0, y: 46)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                            default:
-                                EmptyView()
                             }
+                            
+                        } else {
+                            Button(action: {
+                                print("Bottom button \(index) tapped")
+                            }) {
+                                switch index {
+                                case 1:
+                                    Image("home_icon") // your shop icon
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 100, height: 100)
+                                        .offset(x: 0, y: 46)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                case 2:
+                                    Image("money_icon 1")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 100, height: 100)
+                                        .offset(x: 0, y: 46)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                case 4:
+                                    Image("gear_icon")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 100, height: 100)
+                                        .offset(x: 0, y: 46)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                default:
+                                    EmptyView()
+                            }
+                        }
+                          //  }
                             /*Image("money_icon 1")
                                 .resizable()
                                 .scaledToFit()
@@ -182,6 +199,8 @@ struct InteractiveGIFMapView: View {
 }
 
 #Preview {
-    InteractiveGIFMapView()
-        .environmentObject(StepManager())
+    NavigationStack {
+        InteractiveGIFMapView()
+            .environmentObject(StepManager())
+    }
 }
