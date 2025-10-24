@@ -91,21 +91,6 @@ struct InteractiveGIFMapView: View {
             .navigationBarBackButtonHidden(true)
             .toolbar(.hidden, for: .navigationBar)
 
-            // Top-right Gear button, for Andre to edit!
-            /*
-            VStack {
-                HStack {
-                    Spacer()
-                           
-                    StatsDisplay()
-                }
-                .padding()
-                
-                Spacer()
-            }
-             */
-            
-
             //Bottom bar with 4 buttons, need to app icons, decide what we would like
             VStack {
                 Spacer()
