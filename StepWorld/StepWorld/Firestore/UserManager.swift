@@ -28,6 +28,24 @@ struct DBUser: Codable {
     
 }
 
+// MARK: Step Data Model
+struct DBDailyMetrics: Codable {
+    let dateId: String
+    let stepCount: Int
+    let money: Double
+    let createdAt: Date
+    let updatedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case dateId = "date_id"
+        case stepCount = "step_count"
+        case money = "money"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+
 // MARK: User Manager
 final class UserManager {
     
@@ -62,6 +80,53 @@ final class UserManager {
     
 }
 
+
+// MARK: Step Data Functions
+extension UserManager {
+    
+    private func dailyMetricsCollection(_ userId: String) -> CollectionReference {
+        userDocument(userId).collection("daily_metrics")
+    }
+    
+    private func dailyMetricsDocument(_ userId: String, dateId: String) -> DocumentReference {
+        dailyMetricsCollection(userId).document(dateId)
+    }
+    
+    // Update/Insert today's metics
+    func setDailyMetrics(userId: String, date: Date, stepCount: Int, money: Double) async throws -> DBDailyMetrics? {
+        let dateId = UserManager.dateId(for: date)
+        do {
+            return try await dailyMetricsDocument(userId, dateId: dateId)
+                .getDocument(as: DBDailyMetrics.self)
+        } catch {
+            return nil
+        }
+    }
+    
+    // Fetch a range of daily metrics
+    func listDailyMetrics(userId: String, startDate: Date, endDate: Date) async throws -> [DBDailyMetrics] {
+        let startId = Self.dateId(for: startDate)
+        let endId   = Self.dateId(for: endDate)
+        let snapshot = try await dailyMetricsCollection(userId)
+            .whereField("date_id", isGreaterThanOrEqualTo: startId)
+            .whereField("date_id", isLessThanOrEqualTo: endId)
+            .order(by: "date_id")
+            .getDocuments()
+        
+        return try snapshot.documents.map {try $0.data(as: DBDailyMetrics.self)}
+    }
+    
+    private static func dateId(for date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.calendar = Calendar(identifier: .gregorian)
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.timeZone = TimeZone(secondsFromGMT: 0)
+        fmt.dateFormat = "yyyy-MM-dd"
+        return fmt.string(from: date)
+    }
+    
+}
+
 // MARK: DBUser Factory Methods
 extension DBUser {
     static func fromAuth(_ auth: AuthDataResultModel) -> DBUser {
@@ -73,3 +138,5 @@ extension DBUser {
         )
     }
 }
+
+// MARK: Encoder-Decoder Functions
