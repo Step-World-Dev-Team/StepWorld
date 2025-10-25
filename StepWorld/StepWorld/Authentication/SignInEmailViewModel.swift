@@ -15,7 +15,7 @@ final class SignInEmailViewModel: ObservableObject {
     @Published var email = ""
     @Published var password = ""
     
-    func SignIn() async throws {
+    func signIn() async throws {
         
         // check for empty email or password field
         guard !email.isEmpty, !password.isEmpty else {

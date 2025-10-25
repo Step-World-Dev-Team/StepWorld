@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  SignInView.swift
 //  StepWorld
 //
 //  Created by Isai Soria on 10/2/25.
@@ -8,7 +8,7 @@
 import SwiftUI
 import Combine
 
-struct ContentView: View {
+struct SignInView: View {
     
     @StateObject private var viewModel = SignInEmailViewModel()
     @State private var isSignedIn = false
@@ -16,13 +16,12 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             VStack {
-                Image(systemName: "globe")
-                    .imageScale(.large)
-                    .foregroundStyle(.tint)
+                
                 Text("StepWorld is Live!")
                 
                 Spacer()
                 
+                /*
                 // following two buttons are for testing
                 // assign the email and password that will be used
                 Button("Set Email") {
@@ -32,6 +31,18 @@ struct ContentView: View {
                 Button("Set Password") {
                     viewModel.password = "password"
                 }
+                */
+                TextField("Email...", text: $viewModel.email)
+                    .padding()
+                    .background(Color.gray.opacity(0.4))
+                    .cornerRadius(10)
+                
+                SecureField("Password...", text: $viewModel.password)
+                    .padding()
+                    .background(Color.gray.opacity(0.4))
+                    .cornerRadius(10)
+                                
+                                
                 
                 Spacer()
                 
@@ -39,12 +50,13 @@ struct ContentView: View {
                 Button{
                     Task {
                         do {
-                            try await viewModel.SignIn()
+                            try await viewModel.signIn()
                             // typically you should be sending them to another view here
                             isSignedIn = true
                         } catch {
                             print(error)
                         }
+                       
                     }
                 } label: {
                     Text("Sign In")
@@ -54,6 +66,9 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .background(Color.blue)
                         .cornerRadius(10)
+                }
+                .navigationDestination(isPresented: $isSignedIn) {
+                    InteractiveGIFMapView()
                 }
             }
             
@@ -79,21 +94,13 @@ struct ContentView: View {
                     .cornerRadius(10)
             }
             
-            NavigationLink(destination: InteractiveGIFMapView()) {
-                Text("Go To interactive Map")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(height: 55)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.green)
-                    .cornerRadius(10)
-            }
+            
         }
             }
     }
 
     
     #Preview {
-        ContentView()
+        SignInView()
     }
 

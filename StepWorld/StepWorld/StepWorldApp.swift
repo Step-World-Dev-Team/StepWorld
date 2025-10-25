@@ -17,7 +17,7 @@ struct StepWorldApp: App {
     var body: some Scene {
         WindowGroup {
             
-            ContentView()
+            SignInView()
                 .environmentObject(steps)
           
             /*
