@@ -92,8 +92,24 @@ extension UserManager {
         dailyMetricsCollection(userId).document(dateId)
     }
     
-    // Update/Insert today's metics
-    func setDailyMetrics(userId: String, date: Date, stepCount: Int, money: Double) async throws -> DBDailyMetrics? {
+    // update/insert daily metrics to database
+    func upsertDailyMetrics(userId: String, date: Date, stepCount: Int, money: Double) throws {
+        let dateId = UserManager.dateId(for: date)
+        let today = Date()
+        let payload = DBDailyMetrics(
+            dateId: dateId,
+            stepCount: stepCount,
+            money: money,
+            createdAt: today,
+            updatedAt: today
+        )
+        try dailyMetricsDocument(userId, dateId: dateId)
+            .setData(from: payload, merge: true)
+    }
+    
+    // Fetches today's metics
+    // use to get the metrics for the day (today's steps)
+    func getDailyMetrics(userId: String, date: Date, stepCount: Int, money: Double) async throws -> DBDailyMetrics? {
         let dateId = UserManager.dateId(for: date)
         do {
             return try await dailyMetricsDocument(userId, dateId: dateId)

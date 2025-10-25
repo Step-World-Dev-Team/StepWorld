@@ -79,7 +79,7 @@ class StepManager: ObservableObject {
             guard let uid = self.userId else { return }
             Task {
                 do {
-                    try await UserManager.shared.setDailyMetrics (
+                    try await UserManager.shared.upsertDailyMetrics (
                         userId: uid,
                         date: Date(),
                         stepCount: Int(stepCount),

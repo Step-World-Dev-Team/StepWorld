@@ -15,12 +15,11 @@ final class SignInEmailViewModel: ObservableObject {
     @Published var email = ""
     @Published var password = ""
     
-    func signIn() async throws {
+    func signIn() async throws -> AuthDataResultModel{
         
         // check for empty email or password field
         guard !email.isEmpty, !password.isEmpty else {
-            print("No email or password found")
-            return
+            throw NSError(domain: "SignIn", code: 0, userInfo: [NSLocalizedDescriptionKey: "Email or password missing"])
         }
         
         // attempts to sign in user using provided input
@@ -29,11 +28,12 @@ final class SignInEmailViewModel: ObservableObject {
         print("successfully signed in")
         
         // connect authenticated user to step manager
-        let stepManager = StepManager()
-        stepManager.userId = auth.uid
+        //let stepManager = StepManager()
+        //stepManager.userId = auth.uid
         
         // update step count on FireStore
-        stepManager.syncToday()
+        //stepManager.syncToday()
+        return auth
         
     }
     

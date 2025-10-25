@@ -11,6 +11,7 @@ import Combine
 struct SignInView: View {
     
     @StateObject private var viewModel = SignInEmailViewModel()
+    @EnvironmentObject var stepManager: StepManager
     @State private var isSignedIn = false
     
     var body: some View {
@@ -75,10 +76,16 @@ struct SignInView: View {
                     Button{
                         Task {
                             do {
-                                try await viewModel.signIn()
+                                let auth = try await viewModel.signIn()
+                                
+                                stepManager.userId = auth.uid
+                                
+                                stepManager.fetchTodaySteps()
+                                stepManager.syncToday()
+                                
                                 isSignedIn = true
                             } catch {
-                                print(error)
+                                print("Sign-in failed: \(error)")
                             }
                             
                         }
