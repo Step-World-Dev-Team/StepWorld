@@ -24,8 +24,17 @@ final class SignInEmailViewModel: ObservableObject {
         }
         
         // attempts to sign in user using provided input
-        try await AuthenticationManager.shared.signInUser(email: email, password: password)
+        let auth = try await AuthenticationManager.shared.signInUser(email: email, password: password)
+        
         print("successfully signed in")
+        
+        // connect authenticated user to step manager
+        let stepManager = StepManager()
+        stepManager.userId = auth.uid
+        
+        // update step count on FireStore
+        stepManager.syncToday()
+        
     }
     
     // SignOut function will go here
