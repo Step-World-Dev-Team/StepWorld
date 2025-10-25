@@ -27,12 +27,6 @@ final class SignInEmailViewModel: ObservableObject {
         
         print("successfully signed in")
         
-        // connect authenticated user to step manager
-        //let stepManager = StepManager()
-        //stepManager.userId = auth.uid
-        
-        // update step count on FireStore
-        //stepManager.syncToday()
         return auth
         
     }

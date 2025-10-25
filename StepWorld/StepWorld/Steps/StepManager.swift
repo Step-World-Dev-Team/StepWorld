@@ -61,7 +61,7 @@ class StepManager: ObservableObject {
         healthStore.execute(query)
     }
     
-    
+   // syncs data collected with database
     func syncToday() {
         let stepsType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
         let predicate = HKQuery.predicateForSamples(withStart: .startOfDay, end: Date())
@@ -79,6 +79,7 @@ class StepManager: ObservableObject {
             guard let uid = self.userId else { return }
             Task {
                 do {
+                    // calls for userManager function to add data
                     try await UserManager.shared.upsertDailyMetrics (
                         userId: uid,
                         date: Date(),

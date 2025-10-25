@@ -53,8 +53,6 @@ final class UserManager {
     private init() {}
     
     // pulls the collection called Users
-    // This call can be replicated for whichever collection that is needed
-    // "Collection" representing a folder in the DB
     private let userCollection = Firestore.firestore().collection("Users")
     
     // pulls the individual document from the User folder
@@ -75,8 +73,6 @@ final class UserManager {
     func getUser(userId: String) async throws -> DBUser {
         try await userDocument(userId).getDocument(as: DBUser.self)
     }
-    
-    // more functions to update variables in DB will go here
     
 }
 
