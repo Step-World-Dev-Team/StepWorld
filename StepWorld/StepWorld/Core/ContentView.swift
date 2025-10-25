@@ -88,10 +88,28 @@ struct ContentView: View {
                     .background(Color.green)
                     .cornerRadius(10)
             }
+            NavigationLink(destination: MapView()) {
+                Text("Go To Map")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(height: 55)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .cornerRadius(10)
+            }
+            NavigationLink(destination: SpriteKitMapView()) {
+                Text("Go To SpriteMap")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(height: 55)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.green)
+                    .cornerRadius(10)
+            }
+                .padding(.top, 10) // optional for spacing
         }
             }
     }
-
     
     #Preview {
         ContentView()
