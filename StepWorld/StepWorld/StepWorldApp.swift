@@ -17,16 +17,16 @@ struct StepWorldApp: App {
     var body: some Scene {
         WindowGroup {
             
-           /*
-            ContentView()
+            SignInView()
                 .environmentObject(steps)
-            */
-           
+          
+            /*
             // for demo begin app in interactive map
             NavigationStack {
                 InteractiveGIFMapView()
                     .environmentObject(steps)
             }
+             */
         }
     }
     

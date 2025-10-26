@@ -23,7 +23,9 @@ class StepManager: ObservableObject {
     @Published var todaySteps: Double = 0
     
     @Published var money: Double = 0
-
+    
+    var userId: String?
+    
     init() {
         let steps = HKQuantityType(.stepCount)  //figure out if we have to use HKQuantityType?
         
@@ -49,7 +51,6 @@ class StepManager: ObservableObject {
             }
             
             let stepCount = quantity.doubleValue(for: .count())
-        
             
             DispatchQueue.main.async {
                 self.todaySteps = stepCount
@@ -57,6 +58,39 @@ class StepManager: ObservableObject {
             }
         }
         
+        healthStore.execute(query)
+    }
+    
+   // syncs data collected with database
+    func syncToday() {
+        let stepsType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
+        let predicate = HKQuery.predicateForSamples(withStart: .startOfDay, end: Date())
+        let query = HKStatisticsQuery(quantityType: stepsType, quantitySamplePredicate: predicate) { _, result, error in
+            guard let quantity = result?.sumQuantity(), error == nil else {
+                print("error in fetching today's step data")
+                return
+            }
+            let stepCount = quantity.doubleValue(for: .count())
+            DispatchQueue.main.async {
+                self.todaySteps = stepCount
+                self.money = stepCount
+            }
+            
+            guard let uid = self.userId else { return }
+            Task {
+                do {
+                    // calls for userManager function to add data
+                    try await UserManager.shared.upsertDailyMetrics (
+                        userId: uid,
+                        date: Date(),
+                        stepCount: Int(stepCount),
+                        money: self.money
+                    )
+                } catch {
+                    print("Failed to persist daily metrics: \(error)")
+                }
+            }
+        }
         healthStore.execute(query)
     }
 }
