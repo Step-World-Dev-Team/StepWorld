@@ -397,18 +397,27 @@ final class GameScene: SKScene {
         let loc = t.location(in: self)
         let tapped = nodes(at: loc)
 
+        // Handle menu taps first (either build or manage)
+        if handleManageMenuTap(tapped) { return }   // ⬅️ NEW: manage first
         if handleBuildMenuTap(tapped) { return }
 
+        // Plot selection → show either Build or Manage menu
         if let plot = tapped.first(where: { $0.name == "plot" }) as? SKShapeNode {
             for p in plotNodes { setPlotSelected(p, selected: false) }
             setPlotSelected(plot, selected: true)
             selectedPlot = plot
-            showBuildMenu()
+
+            if isPlotOccupied(plot) {
+                showManageMenu(for: plot)           // ⬅️ NEW: occupied → manage
+            } else {
+                showBuildMenu()                     // empty → build
+            }
             return
         }
 
         dismissBuildMenu()
     }
+
 
     // MARK: - Build menu (fixed layout: no overlap)
     private func showBuildMenu() {
@@ -495,6 +504,76 @@ final class GameScene: SKScene {
         }
         return false
     }
+    
+    private func handleManageMenuTap(_ tapped: [SKNode]) -> Bool {
+        guard buildMenu != nil else { return false }
+        if let node = tapped.first(where: { ($0.name ?? "").hasPrefix("manage:")
+                                       || $0.name == "cancel" }) {
+            let action = node.name ?? ""
+            if action == "cancel" {
+                dismissBuildMenu(); return true
+            }
+            guard let plot = selectedPlot, let bld = building(on: plot) else {
+                dismissBuildMenu(); return true
+            }
+            if action == "manage:upgrade" {
+                upgrade(building: bld, on: plot)
+                dismissBuildMenu(); return true
+            }
+            if action == "manage:sell" {
+                sell(building: bld, on: plot)
+                dismissBuildMenu(); return true
+            }
+        }
+        return false
+    }
+    
+    private func showManageMenu(for plot: SKShapeNode) {
+        dismissBuildMenu() // reuse the same container slot
+        let menu = SKNode(); menu.zPosition = 10_001
+        cameraNode.addChild(menu); buildMenu = menu
+
+        // Layout (reuse your sizing constants)
+        let buttons = ["Upgrade", "Sell", "Cancel"]
+        let buttonsBlockH = CGFloat(buttons.count) * (menuButtonH + menuGap) - menuGap
+        let panelH = menuHeaderPad + buttonsBlockH + menuFooterPad
+        let panelSize = CGSize(width: panelWidth, height: panelH)
+
+        // Panel
+        let panel = SKShapeNode(rectOf: panelSize, cornerRadius: 14)
+        panel.fillColor = UIColor.systemBackground.withAlphaComponent(0.92)
+        panel.strokeColor = .clear
+        menu.addChild(panel)
+
+        // Title
+        let title = SKLabelNode(text: "Manage building")
+        title.fontName = ".SFUI-Bold"
+        title.fontSize = 18
+        title.fontColor = .label
+        title.position = CGPoint(x: 0, y: panelSize.height/2 - 36)
+        menu.addChild(title)
+
+        // Buttons
+        var y = panelSize.height/2 - menuHeaderPad - menuButtonH/2
+
+        func addButton(_ label: String, action: String, isCancel: Bool = false) {
+            let btn = buttonNode(
+                title: label,
+                actionName: action, // e.g. "manage:upgrade" / "manage:sell" / "cancel"
+                size: CGSize(width: menuButtonW, height: menuButtonH),
+                isCancel: isCancel
+            )
+            btn.position = CGPoint(x: 0, y: y)
+            menu.addChild(btn)
+            y -= (menuButtonH + menuGap)
+        }
+
+        addButton("Upgrade", action: "manage:upgrade")
+        addButton("Sell", action: "manage:sell")
+        addButton("Cancel", action: "cancel", isCancel: true)
+    }
+
+
 
     private func dismissBuildMenu() {
         buildMenu?.removeFromParent(); buildMenu = nil
@@ -505,32 +584,76 @@ final class GameScene: SKScene {
         guard let plot = selectedPlot else { return }
         let pos = plot.position
 
+        // Create the sprite first
+        let level = 1
+        let fullName = "\(assetName)_L\(level)"   // e.g. "Barn_L1"
+
         let sprite: SKSpriteNode
-        if UIImage(named: assetName) != nil {
-            sprite = SKSpriteNode(imageNamed: assetName)
+        if UIImage(named: fullName) != nil {
+            sprite = SKSpriteNode(imageNamed: fullName)
         } else {
             sprite = SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
-            print("⚠️ Asset '\(assetName)' not found. Using placeholder.")
+            print("⚠️ Asset '\(fullName)' not found. Using placeholder.")
         }
 
+        // ✅ Now you can safely assign userData
         if sprite.userData == nil { sprite.userData = [:] }
-        sprite.userData?["type"] = assetName
-        let plotName = (plot.userData?["plotName"] as? String) ?? "UnknownPlot"
-        sprite.userData?["plot"] = plotName
+        sprite.userData?["type"] = assetName     // "Barn" or "House"
+        sprite.userData?["level"] = level        // start at level 1
+        sprite.userData?["plot"] = (plot.userData?["plotName"] as? String) ?? "UnknownPlot"
 
         sprite.position = pos
-        sprite.name = "building"
         sprite.zPosition = 1
 
-        // Scale (House/Barn at 0.8; others at base)
         let scale = buildingScaleOverrides[assetName] ?? baseBuildingScale
         sprite.setScale(scale)
 
         addChild(sprite)
         buildings.append(sprite)
+        plot.userData?["occupied"] = true
 
-        print("🏠 Placed \(assetName) at \(pos) on \(plotName) with scale \(scale)")
+        print("🏠 Placed \(assetName) (level \(level)) on \(plot.userData?["plotName"] ?? "UnknownPlot")")
     }
+
+
+    // To detect if a building is occupied
+    private func building(on plot: SKShapeNode) -> SKSpriteNode? {
+        let plotName = (plot.userData?["plotName"] as? String) ?? ""
+        return buildings.first { ($0.userData?["plot"] as? String) == plotName }
+    }
+
+    private func isPlotOccupied(_ plot: SKShapeNode) -> Bool {
+        return building(on: plot) != nil
+    }
+    
+    private func upgrade(building: SKSpriteNode, on plot: SKShapeNode) {
+        let type = (building.userData?["type"] as? String) ?? "Building"
+        let currentLevel = (building.userData?["level"] as? Int) ?? 1
+        let nextLevel = currentLevel + 1
+
+        // Pick the new texture name, e.g. "Barn_L2" or "House_L2"
+        let newTextureName = "\(type)_L\(nextLevel)"
+
+        // Check if that image exists
+        if let newImage = UIImage(named: newTextureName) {
+            building.texture = SKTexture(imageNamed: newTextureName)
+            building.size = building.texture!.size() // resize to match new art
+            building.userData?["level"] = nextLevel
+            print("⬆️ \(type) upgraded to level \(nextLevel)")
+        } else {
+            print("⚠️ No image named \(newTextureName).png found")
+        }
+    }
+
+
+    private func sell(building: SKSpriteNode, on plot: SKShapeNode) {
+        // Remove from scene and tracking; clear occupancy
+        if let idx = buildings.firstIndex(of: building) { buildings.remove(at: idx) }
+        building.removeFromParent()
+        plot.userData?["occupied"] = false // if you use this flag anywhere
+        print("🗑️ Sold building on plot \(plot.userData?["plotName"] ?? "Unknown")")
+    }
+
 
     // MARK: - MapManager helpers
     func addBuilding(_ node: SKSpriteNode) {

@@ -20,9 +20,22 @@
 		8E88A7302EAB383B00ED4F1B /* SpriteKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SpriteKit.framework; path = System/Library/Frameworks/SpriteKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		492731212EAD8B6700C86807 /* Exceptions for "StepWorld" folder in "StepWorld" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 77468A982E8F7DFB005103FF /* StepWorld */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		77468A9B2E8F7DFB005103FF /* StepWorld */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				492731212EAD8B6700C86807 /* Exceptions for "StepWorld" folder in "StepWorld" target */,
+			);
 			path = StepWorld;
 			sourceTree = "<group>";
 		};
