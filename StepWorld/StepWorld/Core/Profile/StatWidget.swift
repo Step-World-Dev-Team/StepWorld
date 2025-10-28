@@ -10,7 +10,7 @@ import SwiftUI
 struct StatWidget: View {
     let backgroundImageName: String
     let title: String
-    let value: String
+    let value: String?
     var icon: Image? = nil
     var width: CGFloat = 280
     var height: CGFloat = 95
@@ -29,9 +29,11 @@ struct StatWidget: View {
                     Text(title)
                         .font(.custom("Press Start 2P", size: 14))
                     
-                    Text(value)
-                        .font(.custom("Press Start 2P", size: 14))
-                        .padding(.top, 5)
+                    if let value = value {
+                        Text(value)
+                            .font(.custom("Press Start 2P", size: 14))
+                            .padding(.top, 5)
+                    }
                 }
                 
                 Spacer()

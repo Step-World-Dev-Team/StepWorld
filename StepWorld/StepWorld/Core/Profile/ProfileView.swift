@@ -42,7 +42,7 @@ struct ProfileView: View {
                 .interpolation(.none)
                 .antialiased(false)
                 .resizable()
-                .frame(width: 350, height: 800) // set desired size
+                .frame(width: 350, height: 700) // set desired size
                 .scaledToFit()
                 .padding()
                 .padding(.bottom, 50)
@@ -71,14 +71,27 @@ struct ProfileView: View {
                     .foregroundColor(.black)
                     .padding(.top, 10)
                 
-                StatWidget(backgroundImageName: "NameWidget", title: "Name:", value: "Joe")
-                    .padding(.top, 30)
+                if let user = viewModel.user {
+                    StatWidget(backgroundImageName: "NameWidget",
+                               title: "Name:",
+                               value: (user.name?.isEmpty == false ? user.name! : "Player"))
+                        .padding(.top, 30)
+                }
                 
-                StatWidget(backgroundImageName: "StepWidget", title: "Steps:", value: steps.todaySteps.formattedString())
+                StatWidget(backgroundImageName: "StepWidget",
+                           title: "Steps:",
+                           value: steps.todaySteps.formattedString())
                     .padding(.top, 5)
                     .padding(.bottom, 5)
                 
-                StatWidget(backgroundImageName: "CoinsWidget", title: "Coins:", value: steps.money.formattedString())
+                StatWidget(backgroundImageName: "CoinsWidget",
+                           title: "Coins:",
+                           value: steps.money.formattedString())
+                    .padding(.bottom, 5)
+                
+                StatWidget(backgroundImageName: "AchievementWidget",
+                           title: "Achievements",
+                           value: nil)
                 
                 Spacer()
             }
