@@ -107,7 +107,7 @@ struct SignInView: View {
             }
             // When bool value is changed it sends the user to MapView
             .navigationDestination(isPresented: $isSignedIn) {
-                InteractiveGIFMapView()
+                SpriteKitMapView()
             }
         }
     }
