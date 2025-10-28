@@ -80,7 +80,6 @@ struct SignInView: View {
                                 
                                 stepManager.userId = auth.uid
                                 
-                                stepManager.fetchTodaySteps()
                                 stepManager.syncToday()
                                 
                                 isSignedIn = true

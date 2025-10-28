@@ -117,6 +117,9 @@ class StepManager: ObservableObject {
                         date: Date(),
                         newStepCount: stepCount
                     )
+                    DispatchQueue.main.async {
+                        self.balance = outcome.balance
+                    }
                 } catch {
                     print("Failed to persist daily metrics: \(error)")
                 }

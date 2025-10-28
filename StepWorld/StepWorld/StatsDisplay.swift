@@ -34,7 +34,7 @@ struct StatsDisplay: View {
                                 .interpolation(.none)
                                 .padding(.leading, 5)
                             
-                            Text(steps.money.formattedString())
+                            Text(steps.balance.formattedString())
                                 .font(.custom("Press Start 2P", size: 13))
                                 .padding(.leading, 6)
                         }
@@ -54,4 +54,13 @@ struct StatsDisplay: View {
     StatsDisplay()
         .environmentObject(StepManager())
 
+}
+
+extension Int {
+    func formattedString() -> String {
+        let nf = NumberFormatter()
+        nf.numberStyle = .decimal
+        nf.maximumFractionDigits = 0
+        return nf.string(from: NSNumber(value: self)) ?? "\(self)"
+    }
 }
