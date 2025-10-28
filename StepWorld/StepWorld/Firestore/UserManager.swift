@@ -11,19 +11,18 @@ import FirebaseSharedSwift
 
 // MARK: DBUser Model
 struct DBUser: Codable {
-    // all variables that are in DBUser
-    // more varaiables can be added here,
-    // they must be initialized below
     let userId: String
     let email: String?
     let photoUrl: String?
     let name: String?
+    let balance: Int?
     
     enum CodingKeys: String, CodingKey {
-       case userId = "user_id"
+        case userId = "user_id"
         case email = "email"
         case photoUrl = "photo_url"
         case name = "name"
+        case balance = "balance"
     }
     
 }
@@ -32,14 +31,12 @@ struct DBUser: Codable {
 struct DBDailyMetrics: Codable {
     let dateId: String
     let stepCount: Int
-    let money: Double
     let createdAt: Date
     let updatedAt: Date
     
     enum CodingKeys: String, CodingKey {
         case dateId = "date_id"
         case stepCount = "step_count"
-        case money = "money"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -78,34 +75,145 @@ final class UserManager {
 
 
 // MARK: Step Data Functions
+enum SpendError: Error {
+    case insufficientFunds
+}
+
 extension UserManager {
-    
+
     private func dailyMetricsCollection(_ userId: String) -> CollectionReference {
         userDocument(userId).collection("daily_metrics")
     }
-    
+
     private func dailyMetricsDocument(_ userId: String, dateId: String) -> DocumentReference {
         dailyMetricsCollection(userId).document(dateId)
     }
-    
-    // update/insert daily metrics to database
-    func upsertDailyMetrics(userId: String, date: Date, stepCount: Int, money: Double) throws {
-        let dateId = UserManager.dateId(for: date)
-        let today = Date()
-        let payload = DBDailyMetrics(
-            dateId: dateId,
-            stepCount: stepCount,
-            money: money,
-            createdAt: today,
-            updatedAt: today
-        )
-        try dailyMetricsDocument(userId, dateId: dateId)
-            .setData(from: payload, merge: true)
+
+    // Get user's coin balance
+    func getBalance(userId: String) async throws -> Int {
+        let snap = try await userDocument(userId).getDocument()
+        let data = snap.data() ?? [:]
+        return data["balance"] as? Int ?? 0
     }
-    
-    // Fetches today's metics
-    // use to get the metrics for the day (today's steps)
-    func getDailyMetrics(userId: String, date: Date, stepCount: Int, money: Double) async throws -> DBDailyMetrics? {
+
+    // Credit delta steps and upsert today's daily_metrics (atomic)
+    func creditStepsAndSyncDaily(userId: String, date: Date, newStepCount: Int) async throws -> (delta: Int, balance: Int) {
+        let fs = Firestore.firestore()
+        let dateId = Self.dateId(for: date)
+        let userRef = userDocument(userId)
+        let dailyRef = dailyMetricsDocument(userId, dateId: dateId)
+
+        return try await withCheckedThrowingContinuation { cont in
+            fs.runTransaction({ (txn, errorPointer) -> Any? in
+                do {
+                    // Read User
+                    let userSnap = try txn.getDocument(userRef)
+                    var balance = (userSnap.data()?["balance"] as? Int) ?? 0
+
+                    // Read daily metrics (can be zero/not exist)
+                    let dailySnap = try? txn.getDocument(dailyRef)
+                    let prevSteps = (dailySnap?.data()?["step_count"] as? Int ) ?? 0
+                    let delta = max(0, newStepCount - prevSteps)
+
+                    // Update/Insert daily metrics
+                    let now = Date()
+                    if dailySnap?.exists == true {
+                        txn.updateData([
+                            "step_count": newStepCount,
+                            "updated_at": now
+                        ], forDocument: dailyRef)
+                    } else {
+                        txn.setData([
+                            "date_id": dateId,
+                            "step_count": newStepCount,
+                            "created_at": now,
+                            "updated_at": now
+                        ], forDocument: dailyRef, merge: true)
+                    }
+
+                    // Increment balance by delta
+                    if delta > 0 {
+                        balance += delta
+                        if userSnap.exists {
+                            txn.updateData(["balance": balance], forDocument: userRef)
+                        } else {
+                            txn.setData([
+                                "user_id": userId,
+                                "balance": balance
+                            ], forDocument: userRef, merge: true)
+                        }
+                    }
+
+                    // Return values to completion block
+                    return ["delta": delta, "balance": balance]
+
+                } catch let err as NSError {
+                    errorPointer?.pointee = err
+                    return nil
+                }
+            }, completion: { result, error in
+                if let error = error { return cont.resume(throwing: error) }
+                guard
+                    let dict = result as? [String: Int],
+                    let delta = dict["delta"],
+                    let balance = dict["balance"]
+                else {
+                    return cont.resume(throwing: NSError(
+                        domain: "UserManager",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Transaction result malformed"]
+                    ))
+                }
+                cont.resume(returning: (delta, balance))
+            })
+        }
+    }
+
+    // Spend from balance (atomic)
+    func spend(userId: String, amount: Int) async throws -> Int {
+        let fs = Firestore.firestore()
+        let userRef = userDocument(userId)
+
+        return try await withCheckedThrowingContinuation { cont in
+            fs.runTransaction({ (txn, errorPointer) -> Any? in
+                do {
+                    let userSnap = try txn.getDocument(userRef)
+                    var balance = (userSnap.data()?["balance"] as? Int) ?? 0
+                    guard amount >= 0 else { throw SpendError.insufficientFunds }
+                    guard balance >= amount else { throw SpendError.insufficientFunds }
+                    balance -= amount
+
+                    if userSnap.exists {
+                        txn.updateData(["balance": balance], forDocument: userRef)
+                    } else {
+                        txn.setData(["user_id": userId, "balance": balance], forDocument: userRef, merge: true)
+                    }
+                    return balance
+                } catch let err as NSError {
+                    errorPointer?.pointee = err
+                    return nil
+                }
+            }, completion: { result, error in
+                if let error = error {
+                    if case SpendError.insufficientFunds = error {
+                        return cont.resume(throwing: SpendError.insufficientFunds)
+                    }
+                    return cont.resume(throwing: error)
+                }
+                guard let newBalance = result as? Int else {
+                    return cont.resume(throwing: NSError(
+                        domain: "UserManager",
+                        code: -2,
+                        userInfo: [NSLocalizedDescriptionKey: "Transaction result malformed"]
+                    ))
+                }
+                cont.resume(returning: newBalance)
+            })
+        }
+    }
+
+    // Fetch today's metrics (no need to pass stepCount or money)
+    func getDailyMetrics(userId: String, date: Date) async throws -> DBDailyMetrics? {
         let dateId = UserManager.dateId(for: date)
         do {
             return try await dailyMetricsDocument(userId, dateId: dateId)
@@ -114,7 +222,7 @@ extension UserManager {
             return nil
         }
     }
-    
+
     // Fetch a range of daily metrics
     func listDailyMetrics(userId: String, startDate: Date, endDate: Date) async throws -> [DBDailyMetrics] {
         let startId = Self.dateId(for: startDate)
@@ -124,19 +232,18 @@ extension UserManager {
             .whereField("date_id", isLessThanOrEqualTo: endId)
             .order(by: "date_id")
             .getDocuments()
-        
-        return try snapshot.documents.map {try $0.data(as: DBDailyMetrics.self)}
+
+        return try snapshot.documents.map { try $0.data(as: DBDailyMetrics.self) }
     }
-    
+
     private static func dateId(for date: Date) -> String {
         let fmt = DateFormatter()
-        fmt.calendar = Calendar(identifier: .gregorian)
-        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.calendar = .init(identifier: .gregorian)
+        fmt.locale = .init(identifier: "en_US_POSIX")
         fmt.timeZone = TimeZone(secondsFromGMT: 0)
         fmt.dateFormat = "yyyy-MM-dd"
         return fmt.string(from: date)
     }
-    
 }
 
 // MARK: DBUser Factory Methods
@@ -146,7 +253,8 @@ extension DBUser {
             userId: auth.uid,
             email: auth.email,
             photoUrl: auth.photoURL,
-            name: auth.name
+            name: auth.name,
+            balance: 0
         )
     }
 }

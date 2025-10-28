@@ -9,7 +9,7 @@ import Foundation
 import SwiftUI
 import Combine
 
-
+// TODO: refactor into its own file
 @MainActor
 final class ProfileViewModel: ObservableObject {
     
