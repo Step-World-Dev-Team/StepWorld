@@ -88,12 +88,20 @@ extension UserManager {
     private func dailyMetricsDocument(_ userId: String, dateId: String) -> DocumentReference {
         dailyMetricsCollection(userId).document(dateId)
     }
+    
+    // Helper to safely convert Firestore numeric values to Int
+        private func asInt(_ any: Any?) -> Int {
+            if let n = any as? Int { return n }
+            if let n = any as? Int64 { return Int(n) }
+            if let n = any as? Double { return Int(n) }
+            if let n = any as? NSNumber { return n.intValue }
+            return 0
+        }
 
     // Get user's coin balance
     func getBalance(userId: String) async throws -> Int {
         let snap = try await userDocument(userId).getDocument()
-        let data = snap.data() ?? [:]
-        return data["balance"] as? Int ?? 0
+        return asInt(snap.data()?["balance"])
     }
 
     // Credit delta steps and upsert today's daily_metrics (atomic)
@@ -108,11 +116,17 @@ extension UserManager {
                 do {
                     // Read User
                     let userSnap = try txn.getDocument(userRef)
-                    var balance = (userSnap.data()?["balance"] as? Int) ?? 0
+                    var balance = self.asInt(userSnap.data()?["balance"])
 
                     // Read daily metrics (can be zero/not exist)
                     let dailySnap = try? txn.getDocument(dailyRef)
-                    let prevSteps = (dailySnap?.data()?["step_count"] as? Int ) ?? 0
+                    let prevSteps: Int
+                    // set to zero if doesn't exist
+                    if let data = dailySnap?.data(), let storedSteps = data["step_count"] {
+                        prevSteps = self.asInt(storedSteps)
+                    } else {
+                        prevSteps = 0  // explicitly state: no doc = zero previous steps
+                    }
                     let delta = max(0, newStepCount - prevSteps)
 
                     // Update/Insert daily metrics
@@ -244,6 +258,16 @@ extension UserManager {
         fmt.dateFormat = "yyyy-MM-dd"
         return fmt.string(from: date)
     }
+    
+    func dateId(for date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.calendar = Calendar(identifier: .gregorian)
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.timeZone = .current
+        fmt.dateFormat = "yyyy-MM-dd"
+        return fmt.string(from: date)
+    }
+    
 }
 
 // MARK: DBUser Factory Methods
