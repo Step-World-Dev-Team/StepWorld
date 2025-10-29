@@ -21,9 +21,9 @@ final class GameScene: SKScene {
     private let tmxName = "EmptyMap"
     private let plotLayerName = "Building"        // must match Tiled Object Layer name exactly
 
-    private let minZoom: CGFloat = 0.55
-    private let maxZoom: CGFloat = 2.5
-    private let initialZoom: CGFloat = 0.95       // a bit more zoom for visual appeal
+    private let minZoom: CGFloat = 0.25 // was 0.55
+    private let maxZoom: CGFloat = 0.7  // was 2.5
+    private let initialZoom: CGFloat = 0.55 // was 0.95      // a bit more zoom for visual appeal
 
     // Plot visuals (subtle)
     private let plotGlow: CGFloat = 6.0           // was 16 (softer)
