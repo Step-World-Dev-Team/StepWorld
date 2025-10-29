@@ -17,8 +17,7 @@ class GameViewController: UIViewController {
         skView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(skView)
         
-        //let scene = GameScene(size: skView.bounds.size)
-        //scene.scaleMode = .aspectFill
+        
         skView.presentScene(map.scene)
         
         print("✅ GameViewController launched GameScene.")

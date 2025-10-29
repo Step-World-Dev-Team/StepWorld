@@ -11,25 +11,7 @@ struct SpriteKitMapView: View {
     @EnvironmentObject private var map: MapManager
     
     @State private var showProfile = false
-    /*
-    var scene: SKScene {
-        let scene = GameScene(size: UIScreen.main.bounds.size)
-        scene.scaleMode = .aspectFill
-        return scene
-    }
-    */
-    //var body: some View {
-      //  SpriteView(scene: map.scene)
-        //    .ignoresSafeArea()
-
-
-        /*
-    private let scene: SKScene = {
-        let s = GameScene(size: UIScreen.main.bounds.size)
-        s.scaleMode = .aspectFill
-        return s
-    }()
-         */
+    
 
     var body: some View {
         ZStack {

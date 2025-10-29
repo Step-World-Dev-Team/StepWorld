@@ -142,6 +142,7 @@ final class MapManager: ObservableObject {
         }
     }
     
+    // TODO: Bring these back
     /*
     func loadBuildingData(_ data: [[String: Any]]) {
             for item in data {

@@ -22,14 +22,7 @@ struct StepWorldApp: App {
             SignInView()
                 .environmentObject(steps)
                 .environmentObject(map)
-            /*
-            // for demo begin app in interactive map
-            NavigationStack {
-                InteractiveGIFMapView()
-                    .environmentObject(steps)
-            }
-             */
-
+            
         }
     }
     

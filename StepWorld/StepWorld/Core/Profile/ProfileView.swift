@@ -14,11 +14,26 @@ import Combine
 final class ProfileViewModel: ObservableObject {
     
     @Published private(set) var user: DBUser? = nil
+    @Published private(set) var balance: Int? = nil
+    @Published private(set) var todaySteps: Int? = nil
     
     // attempts to pull user data from authentication & user managers
     func loadCurrentUser() async throws {
-        let authDataResult = try AuthenticationManager.shared.getAuthenticatedUser()
-        self.user = try await UserManager.shared.getUser(userId: authDataResult.uid)
+        do {
+            let authDataResult = try AuthenticationManager.shared.getAuthenticatedUser()
+            self.user = try await UserManager.shared.getUser(userId: authDataResult.uid)
+            
+            let coins = try await UserManager.shared.getBalance(userId: authDataResult.uid)
+            self.balance = coins
+            
+            if let metrics = try await UserManager.shared.getDailyMetrics(userId: authDataResult.uid, date: Date()) {
+                self.todaySteps = metrics.stepCount
+            } else {
+                self.todaySteps = 0
+            }
+        } catch {
+            print("Failed to load profile: \(error)")
+        }
     }
 }
 
@@ -80,13 +95,15 @@ struct ProfileView: View {
                 
                 StatWidget(backgroundImageName: "StepWidget",
                            title: "Steps:",
-                           value: steps.todaySteps.formattedString())
+                           value: (viewModel.todaySteps?.formattedString() ?? "--"))
                     .padding(.top, 5)
                     .padding(.bottom, 5)
                 
-                StatWidget(backgroundImageName: "CoinsWidget",
+                StatWidget(
+                    backgroundImageName: "CoinsWidget",
                            title: "Coins:",
-                           value: steps.balance.formattedString())
+                           value: (viewModel.balance?.formattedString() ?? "--")
+                )
                     .padding(.bottom, 5)
                 
                 StatWidget(backgroundImageName: "AchievementWidget",
@@ -95,29 +112,7 @@ struct ProfileView: View {
                 
                 Spacer()
             }
-            // temporary way of displaying user information
-            /*ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let user = viewModel.user {
-                        
-                        Text("UserId: \(user.userId)")
-                            .font(.custom("Press Start 2P", size: 14))
-                        
-                        // will not display anything since there is no email value currently in DB
-                        if let email = user.email {
-                            Text("Email: \(email.description.capitalized)")
-                                .font(.custom("Press Start 2P", size: 14))
-                        }
-                        
-                        if let name = user.name {
-                            Text("Name: \(name.capitalized)")
-                                .font(.custom("Press Start 2P", size: 14))
-                        }
-                        
-                    }
-                }
-                .padding(16)
-            }*/
+            
             
         }
         .navigationBarBackButtonHidden(true)
