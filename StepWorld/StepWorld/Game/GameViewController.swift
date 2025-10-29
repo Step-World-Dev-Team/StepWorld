@@ -8,6 +8,7 @@ import UIKit
 import SpriteKit
 
 class GameViewController: UIViewController {
+    private let map = MapManager()
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -16,9 +17,9 @@ class GameViewController: UIViewController {
         skView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(skView)
         
-        let scene = GameScene(size: skView.bounds.size)
-        scene.scaleMode = .aspectFill
-        skView.presentScene(scene)
+        //let scene = GameScene(size: skView.bounds.size)
+        //scene.scaleMode = .aspectFill
+        skView.presentScene(map.scene)
         
         print("✅ GameViewController launched GameScene.")
     }

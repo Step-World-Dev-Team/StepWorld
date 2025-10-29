@@ -8,6 +8,7 @@
 import Foundation
 import FirebaseFirestore
 import FirebaseSharedSwift
+import CoreGraphics
 
 // MARK: DBUser Model
 struct DBUser: Codable {
@@ -183,6 +184,7 @@ extension UserManager {
         }
     }
 
+    //MARK: Shop/Transaction methods
     // Spend from balance (atomic)
     func spend(userId: String, amount: Int) async throws -> Int {
         let fs = Firestore.firestore()
@@ -270,6 +272,74 @@ extension UserManager {
     
 }
 
+// MARK: Map Data Functions
+private struct UserMapWrapper: Codable {
+    let map_buildings: [Building]?
+}
+
+extension UserManager {
+    /*
+    /// Save array of dictionaries: [{ type, plot, x(CGFloat), y(CGFloat), ... }]
+        func saveMapBuildings(userId: String, buildings: [[String: Any]]) async throws {
+            // Firestore can’t store CGFloat: normalize to Double
+            let sanitized: [[String: Any]] = buildings.map { d in
+                var out = d
+                if let x = d["x"] as? CGFloat { out["x"] = Double(x) }
+                if let y = d["y"] as? CGFloat { out["y"] = Double(y) }
+                return out
+            }
+            try await userDocument(userId).setData([
+                "map_buildings": sanitized,
+                "map_updated_at": FieldValue.serverTimestamp()
+            ], merge: true)
+        }
+
+
+    /// Fetch buildings; convert x/y back to CGFloat for your SpriteKit code
+        func fetchMapBuildings(userId: String) async throws -> [[String: Any]] {
+            let snap = try await userDocument(userId).getDocument()
+            guard let raw = snap.data()?["map_buildings"] as? [[String: Any]] else { return [] }
+
+            return raw.map { d in
+                var out = d
+                let xNum = d["x"] as? NSNumber
+                let yNum = d["y"] as? NSNumber
+                out["x"] = CGFloat(xNum?.doubleValue ?? 0)
+                out["y"] = CGFloat(yNum?.doubleValue ?? 0)
+                return out
+            }
+        }
+     */
+   /*
+    func saveMapBuildings(userId: String, buildings: [Building]) async throws {
+        try await userDocument(userId).setData([
+            "map_buildings": try encoder.encode(buildings),
+            "map_updated_at": FieldValue.serverTimestamp()
+        ], merge: true)
+    }
+
+    func fetchMapBuildings(userId: String) async throws -> [Building] {
+        let snap = try await userDocument(userId).getDocument()
+        guard let arr = snap.data()?["map_buildings"] as? [[String: Any]] else { return [] }
+        // decode each item back to Building
+        return try arr.map { try decoder.decode(Building.self, from: $0) }
+    }
+    */
+    func saveMapBuildings(userId: String, buildings: [Building]) async throws {
+            let encodedArray: [[String: Any]] = try buildings.map { try encoder.encode($0) }
+            try await userDocument(userId).setData([
+                "map_buildings": encodedArray,
+                "map_updated_at": FieldValue.serverTimestamp()
+            ], merge: true)
+        }
+
+        func fetchMapBuildings(userId: String) async throws -> [Building] {
+            let snap = try await userDocument(userId).getDocument()
+            guard let raw = snap.data()?["map_buildings"] as? [[String: Any]] else { return [] }
+            return try raw.map { try decoder.decode(Building.self, from: $0) }
+        }
+}
+
 // MARK: DBUser Factory Methods
 extension DBUser {
     static func fromAuth(_ auth: AuthDataResultModel) -> DBUser {
@@ -283,4 +353,5 @@ extension DBUser {
     }
 }
 
+// TODO: Refactor encoder and decoder functions
 // MARK: Encoder-Decoder Functions

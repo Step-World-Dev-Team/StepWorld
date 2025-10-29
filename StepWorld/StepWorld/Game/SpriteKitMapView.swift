@@ -8,14 +8,17 @@ import SwiftUI
 import SpriteKit
 
 struct SpriteKitMapView: View {
+    @StateObject private var map = MapManager()
+    
+    /*
     var scene: SKScene {
         let scene = GameScene(size: UIScreen.main.bounds.size)
         scene.scaleMode = .aspectFill
         return scene
     }
-    
+    */
     var body: some View {
-        SpriteView(scene: scene)
+        SpriteView(scene: map.scene)
             .ignoresSafeArea()
     }
 }

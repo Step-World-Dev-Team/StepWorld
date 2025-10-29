@@ -74,6 +74,13 @@ final class GameScene: SKScene {
     private var panGR: UIPanGestureRecognizer?
     private var panVelocity = CGPoint.zero
     private var lastUpdateTime: TimeInterval = 0
+    
+    // MARK: - Database
+    var onMapChanged: (() -> Void)?
+    
+    private func triggerMapChanged() {
+        onMapChanged?()
+    }
 
     // MARK: - Scene lifecycle
     override func didMove(to view: SKView) {
@@ -398,7 +405,7 @@ final class GameScene: SKScene {
         let tapped = nodes(at: loc)
 
         // Handle menu taps first (either build or manage)
-        if handleManageMenuTap(tapped) { return }   // ⬅️ NEW: manage first
+        if handleManageMenuTap(tapped) { return }
         if handleBuildMenuTap(tapped) { return }
 
         // Plot selection → show either Build or Manage menu
@@ -408,9 +415,9 @@ final class GameScene: SKScene {
             selectedPlot = plot
 
             if isPlotOccupied(plot) {
-                showManageMenu(for: plot)           // ⬅️ NEW: occupied → manage
+                showManageMenu(for: plot)
             } else {
-                showBuildMenu()                     // empty → build
+                showBuildMenu()
             }
             return
         }
@@ -611,6 +618,7 @@ final class GameScene: SKScene {
         addChild(sprite)
         buildings.append(sprite)
         plot.userData?["occupied"] = true
+        triggerMapChanged()
 
         print("🏠 Placed \(assetName) (level \(level)) on \(plot.userData?["plotName"] ?? "UnknownPlot")")
     }
@@ -640,6 +648,7 @@ final class GameScene: SKScene {
             building.size = building.texture!.size() // resize to match new art
             building.userData?["level"] = nextLevel
             print("⬆️ \(type) upgraded to level \(nextLevel)")
+            triggerMapChanged()
         } else {
             print("⚠️ No image named \(newTextureName).png found")
         }
@@ -652,6 +661,7 @@ final class GameScene: SKScene {
         building.removeFromParent()
         plot.userData?["occupied"] = false // if you use this flag anywhere
         print("🗑️ Sold building on plot \(plot.userData?["plotName"] ?? "Unknown")")
+        triggerMapChanged()
     }
 
 
@@ -672,5 +682,29 @@ final class GameScene: SKScene {
                 "y": node.position.y
             ]
         }
+    }
+    
+    // Convert your in-memory sprites → typed models
+    func getBuildingModels() -> [Building] {
+        return buildings.map { Building(node: $0) }
+    }
+
+    // Place buildings from typed models (the only new "load" you need)
+    func applyLoadedBuildings(_ models: [Building]) {
+        for m in models {
+            let sprite = m.makeSprite()
+
+            // Keep your existing scaling rules
+            let baseBuildingScale: CGFloat = 0.6
+            let buildingScaleOverrides: [String: CGFloat] = [
+                "House": 0.8,
+                "Barn":  0.8
+            ]
+            let scale = buildingScaleOverrides[m.type] ?? baseBuildingScale
+            sprite.setScale(scale)
+
+            addBuilding(sprite)
+        }
+        print("✅ Loaded \(models.count) buildings into scene.")
     }
 }

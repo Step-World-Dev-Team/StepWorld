@@ -78,6 +78,10 @@ struct SignInView: View {
                             do {
                                 let auth = try await viewModel.signIn()
                                 
+                                //try? await UserManager.shared.saveMapBuildings(
+                                  //  userId: auth.uid,
+                                    //buildings: [])
+                                
                                 stepManager.userId = auth.uid
                                 
                                 stepManager.syncToday()
@@ -106,7 +110,7 @@ struct SignInView: View {
             }
             // When bool value is changed it sends the user to MapView
             .navigationDestination(isPresented: $isSignedIn) {
-                InteractiveGIFMapView()
+                SpriteKitMapView()
             }
         }
     }
