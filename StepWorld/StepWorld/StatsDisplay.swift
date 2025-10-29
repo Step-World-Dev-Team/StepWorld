@@ -40,6 +40,7 @@ struct StatsDisplay: View {
                         }
                     }
                     .padding()
+                    .padding(.bottom,6)
                 }
             }
             .onAppear {

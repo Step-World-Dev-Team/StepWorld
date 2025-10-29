@@ -25,30 +25,78 @@ final class ProfileViewModel: ObservableObject {
 
 struct ProfileView: View {
     
+    var onClose: (() -> Void)? = nil
+    
+    @Environment(\.dismiss) private var dismiss  // for closing the view
     @StateObject private var viewModel = ProfileViewModel()
+    @EnvironmentObject var steps: StepManager
     
     // creates inset of screen for borders to show
-    private let border: CGFloat = 6
+    private let border: CGFloat = 20
     private let cornerSafeMargin: CGFloat = 2
     
     var body: some View {
         ZStack {
-            Color(red: 1.0, green: 0.93, blue: 0.88)
-                .ignoresSafeArea()
             
-            Image("page_background")
-                .resizable(
-                    capInsets: EdgeInsets(top: border, leading: border, bottom: border, trailing: border),
-                    resizingMode: .stretch
-                )
+            Image("ProfileViewBackground")
                 .interpolation(.none)
                 .antialiased(false)
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
+                .resizable()
+                .frame(width: 350, height: 700) // set desired size
+                .scaledToFit()
+                .padding()
+                .padding(.bottom, 50)
             
-            
+            VStack {
+                
+                HStack {
+                    Spacer()
+                    
+                    Button {
+                        onClose?()  // closes the view and goes back
+                    } label: {
+                        Image("close_button")
+                            .resizable()
+                            .interpolation(.none)
+                            .scaledToFit()
+                            .frame(width: 50, height: 50)
+                            .padding(.trailing, 10)
+                            .padding(.top, 10)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Text("PROFILE")
+                    .font(.custom("Press Start 2P", size: 25))
+                    .foregroundColor(.black)
+                    .padding(.top, 10)
+                
+                if let user = viewModel.user {
+                    StatWidget(backgroundImageName: "NameWidget",
+                               title: "Name:",
+                               value: (user.name?.isEmpty == false ? user.name! : "Player"))
+                        .padding(.top, 30)
+                }
+                
+                StatWidget(backgroundImageName: "StepWidget",
+                           title: "Steps:",
+                           value: steps.todaySteps.formattedString())
+                    .padding(.top, 5)
+                    .padding(.bottom, 5)
+                
+                StatWidget(backgroundImageName: "CoinsWidget",
+                           title: "Coins:",
+                           value: steps.money.formattedString())
+                    .padding(.bottom, 5)
+                
+                StatWidget(backgroundImageName: "AchievementWidget",
+                           title: "Achievements",
+                           value: nil)
+                
+                Spacer()
+            }
             // temporary way of displaying user information
-            ScrollView {
+            /*ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     if let user = viewModel.user {
                         
@@ -69,13 +117,14 @@ struct ProfileView: View {
                     }
                 }
                 .padding(16)
-            }
+            }*/
             
         }
+        .navigationBarBackButtonHidden(true)
         .task{
             try? await viewModel.loadCurrentUser()
         }
-        .navigationTitle("Profile")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
     }
@@ -84,5 +133,6 @@ struct ProfileView: View {
 #Preview {
     NavigationStack {
         ProfileView()
+            .environmentObject(StepManager())
     }
 }
