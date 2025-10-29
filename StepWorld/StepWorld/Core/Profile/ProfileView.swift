@@ -86,7 +86,7 @@ struct ProfileView: View {
                 
                 StatWidget(backgroundImageName: "CoinsWidget",
                            title: "Coins:",
-                           value: steps.money.formattedString())
+                           value: steps.balance.formattedString())
                     .padding(.bottom, 5)
                 
                 StatWidget(backgroundImageName: "AchievementWidget",
