@@ -21,11 +21,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-<<<<<<< HEAD
-		F237041B2EADD6AB00D74D68 /* Exceptions for "StepWorld" folder in "StepWorld" target */ = {
-=======
 		492731212EAD8B6700C86807 /* Exceptions for "StepWorld" folder in "StepWorld" target */ = {
->>>>>>> feature/build-building
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -38,11 +34,7 @@
 		77468A9B2E8F7DFB005103FF /* StepWorld */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-<<<<<<< HEAD
-				F237041B2EADD6AB00D74D68 /* Exceptions for "StepWorld" folder in "StepWorld" target */,
-=======
 				492731212EAD8B6700C86807 /* Exceptions for "StepWorld" folder in "StepWorld" target */,
->>>>>>> feature/build-building
 			);
 			path = StepWorld;
 			sourceTree = "<group>";
