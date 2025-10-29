@@ -11,6 +11,7 @@ import Combine
 
 @MainActor
 final class MapManager: ObservableObject {
+    var userId: String?
     
     //private var scene: GameScene?
     //private var skView: SKView?
@@ -40,7 +41,7 @@ final class MapManager: ObservableObject {
                 }
 
                 print("✅ MapManager initialized with shared GameScene.")
-                loadFromFirestoreIfAvailable()
+                //loadFromFirestoreIfAvailable()
     }
     
     // MARK: - Database Functions
@@ -84,7 +85,8 @@ final class MapManager: ObservableObject {
     }
     
     // MARK: - Load on startup (typed [Building] version)
-    private func loadFromFirestoreIfAvailable() {
+    @MainActor
+    func loadFromFirestoreIfAvailable() async throws{
         guard let uid = Auth.auth().currentUser?.uid else {
             print("ℹ️ No signed-in user; skipping load.")
             return

@@ -12,6 +12,7 @@ struct SignInView: View {
     
     @StateObject private var viewModel = SignInEmailViewModel()
     @EnvironmentObject var stepManager: StepManager
+    @EnvironmentObject var mapManager: MapManager
     @State private var isSignedIn = false
     
     var body: some View {
@@ -77,16 +78,23 @@ struct SignInView: View {
                         Task {
                             do {
                                 let auth = try await viewModel.signIn()
+                                //let auth2 = try await viewModel.signIn()
+                                // set ids on main actor
+                                await MainActor.run {
+                                   // stepManager.userId = auth.uid
+                                    mapManager.userId  = auth.uid
+                                }
                                 
-                                //try? await UserManager.shared.saveMapBuildings(
-                                  //  userId: auth.uid,
-                                    //buildings: [])
+                                // kick off data loads
+                                //async let stepsTask: Void = stepManager.syncToday()
+                                async let mapTask:   Void = try mapManager.loadFromFirestoreIfAvailable()
                                 
-                                stepManager.userId = auth.uid
+                                // wait for both to finish (adjust if your funcs aren’t async/throws)
+                                //try await stepsTask
+                                    try await mapTask
                                 
-                                stepManager.syncToday()
-                                
-                                isSignedIn = true
+                                // flip the UI flag after data is in
+                                await MainActor.run { isSignedIn = true }
                             } catch {
                                 print("Sign-in failed: \(error)")
                             }
@@ -111,6 +119,7 @@ struct SignInView: View {
             // When bool value is changed it sends the user to MapView
             .navigationDestination(isPresented: $isSignedIn) {
                 SpriteKitMapView()
+                    .environmentObject(mapManager)
             }
         }
     }

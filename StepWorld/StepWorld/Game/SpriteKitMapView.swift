@@ -8,8 +8,9 @@ import SwiftUI
 import SpriteKit
 
 struct SpriteKitMapView: View {
-    @StateObject private var map = MapManager()
+    @EnvironmentObject private var map: MapManager
     
+    @State private var showProfile = false
     /*
     var scene: SKScene {
         let scene = GameScene(size: UIScreen.main.bounds.size)
@@ -17,21 +18,22 @@ struct SpriteKitMapView: View {
         return scene
     }
     */
-    var body: some View {
-        SpriteView(scene: map.scene)
-            .ignoresSafeArea()
+    //var body: some View {
+      //  SpriteView(scene: map.scene)
+        //    .ignoresSafeArea()
 
-    @State private var showProfile = false
 
+        /*
     private let scene: SKScene = {
         let s = GameScene(size: UIScreen.main.bounds.size)
         s.scaleMode = .aspectFill
         return s
     }()
+         */
 
     var body: some View {
         ZStack {
-            SpriteView(scene: scene)
+            SpriteView(scene: map.scene)
                 .ignoresSafeArea()
 
             Color.clear
@@ -134,5 +136,6 @@ struct SpriteKitMapView: View {
 
 #Preview {
     SpriteKitMapView()
+        .environmentObject(MapManager())
         .environmentObject(StepManager())
 }
