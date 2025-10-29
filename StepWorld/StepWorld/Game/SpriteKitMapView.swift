@@ -8,17 +8,14 @@ import SwiftUI
 import SpriteKit
 
 struct SpriteKitMapView: View {
+    @EnvironmentObject private var map: MapManager
+    
     @State private var showProfile = false
-
-    private let scene: SKScene = {
-        let s = GameScene(size: UIScreen.main.bounds.size)
-        s.scaleMode = .aspectFill
-        return s
-    }()
+    
 
     var body: some View {
         ZStack {
-            SpriteView(scene: scene)
+            SpriteView(scene: map.scene)
                 .ignoresSafeArea()
 
             Color.clear
@@ -115,10 +112,12 @@ struct SpriteKitMapView: View {
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+
     }
 }
 
 #Preview {
     SpriteKitMapView()
+        .environmentObject(MapManager())
         .environmentObject(StepManager())
 }
