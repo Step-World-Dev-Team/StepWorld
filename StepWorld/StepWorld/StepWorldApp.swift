@@ -12,21 +12,17 @@ import Firebase
 struct StepWorldApp: App {
     
     @StateObject private var steps = StepManager()
+    @StateObject private var map = MapManager()
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     
     var body: some Scene {
         WindowGroup {
             
-           /*
-            ContentView()
+
+            SignInView()
                 .environmentObject(steps)
-            */
-           
-            // for demo begin app in interactive map
-            NavigationStack {
-                InteractiveGIFMapView()
-                    .environmentObject(steps)
-            }
+                .environmentObject(map)
+            
         }
     }
     

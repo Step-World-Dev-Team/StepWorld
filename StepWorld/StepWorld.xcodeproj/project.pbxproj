@@ -11,14 +11,17 @@
 		77C7CB2B2E94B22900762F0A /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 77C7CB2A2E94B22900762F0A /* FirebaseAnalyticsCore */; };
 		77C7CB2D2E94B22900762F0A /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 77C7CB2C2E94B22900762F0A /* FirebaseAuth */; };
 		77C7CB4A2E94B70300762F0A /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 77C7CB492E94B70300762F0A /* FirebaseFirestore */; };
+		8E88A7222EA95A5E00ED4F1B /* MSKTiled in Frameworks */ = {isa = PBXBuildFile; productRef = 8E88A7212EA95A5E00ED4F1B /* MSKTiled */; };
+		8E88A7312EAB383B00ED4F1B /* SpriteKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E88A7302EAB383B00ED4F1B /* SpriteKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		77468A992E8F7DFB005103FF /* StepWorld.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StepWorld.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8E88A7302EAB383B00ED4F1B /* SpriteKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SpriteKit.framework; path = System/Library/Frameworks/SpriteKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		F28812772E9B40A0008BDEEB /* Exceptions for "StepWorld" folder in "StepWorld" target */ = {
+		F237041B2EADD6AB00D74D68 /* Exceptions for "StepWorld" folder in "StepWorld" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -31,7 +34,7 @@
 		77468A9B2E8F7DFB005103FF /* StepWorld */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				F28812772E9B40A0008BDEEB /* Exceptions for "StepWorld" folder in "StepWorld" target */,
+				F237041B2EADD6AB00D74D68 /* Exceptions for "StepWorld" folder in "StepWorld" target */,
 			);
 			path = StepWorld;
 			sourceTree = "<group>";
@@ -43,8 +46,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8E88A7312EAB383B00ED4F1B /* SpriteKit.framework in Frameworks */,
 				77C7CB292E94B22900762F0A /* FirebaseAnalytics in Frameworks */,
 				77C7CB4A2E94B70300762F0A /* FirebaseFirestore in Frameworks */,
+				8E88A7222EA95A5E00ED4F1B /* MSKTiled in Frameworks */,
 				77C7CB2D2E94B22900762F0A /* FirebaseAuth in Frameworks */,
 				77C7CB2B2E94B22900762F0A /* FirebaseAnalyticsCore in Frameworks */,
 			);
@@ -73,6 +78,7 @@
 		77C7CB482E94B70300762F0A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				8E88A7302EAB383B00ED4F1B /* SpriteKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -101,6 +107,7 @@
 				77C7CB2A2E94B22900762F0A /* FirebaseAnalyticsCore */,
 				77C7CB2C2E94B22900762F0A /* FirebaseAuth */,
 				77C7CB492E94B70300762F0A /* FirebaseFirestore */,
+				8E88A7212EA95A5E00ED4F1B /* MSKTiled */,
 			);
 			productName = StepWorld;
 			productReference = 77468A992E8F7DFB005103FF /* StepWorld.app */;
@@ -132,6 +139,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				77C7CB272E94B22900762F0A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				8E88A7202EA95A5E00ED4F1B /* XCRemoteSwiftPackageReference "MSKTiled" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 77468A9A2E8F7DFB005103FF /* Products */;
@@ -289,6 +297,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StepWorld/StepWorld.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -302,7 +311,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -310,6 +319,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = StepWorldDevTeam.StepWorld;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -326,6 +336,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StepWorld/StepWorld.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -339,7 +350,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -347,6 +358,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = StepWorldDevTeam.StepWorld;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -389,6 +401,14 @@
 				minimumVersion = 12.3.0;
 			};
 		};
+		8E88A7202EA95A5E00ED4F1B /* XCRemoteSwiftPackageReference "MSKTiled" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sanderfrenken/MSKTiled";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.10;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -411,6 +431,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 77C7CB272E94B22900762F0A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		8E88A7212EA95A5E00ED4F1B /* MSKTiled */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8E88A7202EA95A5E00ED4F1B /* XCRemoteSwiftPackageReference "MSKTiled" */;
+			productName = MSKTiled;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

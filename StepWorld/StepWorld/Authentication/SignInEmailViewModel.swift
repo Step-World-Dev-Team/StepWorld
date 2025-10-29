@@ -15,17 +15,20 @@ final class SignInEmailViewModel: ObservableObject {
     @Published var email = ""
     @Published var password = ""
     
-    func SignIn() async throws {
+    func signIn() async throws -> AuthDataResultModel{
         
         // check for empty email or password field
         guard !email.isEmpty, !password.isEmpty else {
-            print("No email or password found")
-            return
+            throw NSError(domain: "SignIn", code: 0, userInfo: [NSLocalizedDescriptionKey: "Email or password missing"])
         }
         
         // attempts to sign in user using provided input
-        try await AuthenticationManager.shared.signInUser(email: email, password: password)
+        let auth = try await AuthenticationManager.shared.signInUser(email: email, password: password)
+        
         print("successfully signed in")
+        
+        return auth
+        
     }
     
     // SignOut function will go here
