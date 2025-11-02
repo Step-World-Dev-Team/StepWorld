@@ -77,6 +77,7 @@ final class GameScene: SKScene {
     
     // MARK: - Database
     var onMapChanged: (() -> Void)?
+    var userId: String!
     
     private func triggerMapChanged() {
         onMapChanged?()
@@ -503,12 +504,39 @@ final class GameScene: SKScene {
             if name == "cancel" {
                 dismissBuildMenu(); return true
             }
+            
             if name.hasPrefix("build:") {
-                let asset = String(name.dropFirst("build:".count))
-                placeBuildingOnSelectedPlot(assetName: asset)
-                dismissBuildMenu(); return true
-            }
-        }
+                        let asset = String(name.dropFirst("build:".count))
+                        let cost = buildCost(for: asset)
+
+                        // Run async spending logic in a Task
+                        Task { [weak self] in
+                            guard let self = self else { return }
+                            guard let uid = self.userId else {
+                                print("No userId set on GameScene")
+                                return
+                            }
+
+                            do {
+                                // Attempt to spend before building
+                                let newBalance = try await UserManager.shared.spend(userId: uid, amount: cost)
+                                print("Built \(asset) for \(cost). New balance: \(newBalance)")
+
+                                // Only place the building if payment succeeded
+                                self.placeBuildingOnSelectedPlot(assetName: asset)
+                                self.triggerMapChanged()
+
+                            } catch {
+                                print("Could not build \(asset): \(error.localizedDescription)")
+                            }
+
+                            // Close menu afterward
+                            self.dismissBuildMenu()
+                        }
+
+                        return true
+                    }
+                }
         return false
     }
     
@@ -520,16 +548,36 @@ final class GameScene: SKScene {
             if action == "cancel" {
                 dismissBuildMenu(); return true
             }
+            
+            // this might no longer need to be used because I integrated it into the func call
+            // refactoring opportunity?
             guard let plot = selectedPlot, let bld = building(on: plot) else {
                 dismissBuildMenu(); return true
             }
+            
             if action == "manage:upgrade" {
+                Task { [weak self] in
+                        guard let self, let plot = self.selectedPlot, let bld = self.building(on: plot) else { return }
+                        await self.upgrade(building: bld, on: plot)
+                    }
+                    dismissBuildMenu()
+                    return true
+                /* Old Logic (kept just in case)
                 upgrade(building: bld, on: plot)
                 dismissBuildMenu(); return true
+                 */
             }
             if action == "manage:sell" {
+                Task { [weak self] in
+                        guard let self, let plot = self.selectedPlot, let bld = self.building(on: plot) else { return }
+                        await self.sell(building: bld, on: plot)
+                    }
+                    dismissBuildMenu()
+                    return true
+                /*  Old Logic (kept just in case)
                 sell(building: bld, on: plot)
                 dismissBuildMenu(); return true
+                 */
             }
         }
         return false
@@ -634,34 +682,65 @@ final class GameScene: SKScene {
         return building(on: plot) != nil
     }
     
-    private func upgrade(building: SKSpriteNode, on plot: SKShapeNode) {
+    
+    private func upgrade(building: SKSpriteNode, on plot: SKShapeNode) async {
         let type = (building.userData?["type"] as? String) ?? "Building"
         let currentLevel = (building.userData?["level"] as? Int) ?? 1
         let nextLevel = currentLevel + 1
 
-        // Pick the new texture name, e.g. "Barn_L2" or "House_L2"
-        let newTextureName = "\(type)_L\(nextLevel)"
+        // Example: define upgrade cost logic
+        let cost = nextLevel * 100  // cost currently set to 100 times the level of the building
+        guard let uid = self.userId else {
+            print("No userId set on GameScene");
+            return
+        }
 
-        // Check if that image exists
-        if let newImage = UIImage(named: newTextureName) {
-            building.texture = SKTexture(imageNamed: newTextureName)
-            building.size = building.texture!.size() // resize to match new art
-            building.userData?["level"] = nextLevel
-            print("⬆️ \(type) upgraded to level \(nextLevel)")
-            triggerMapChanged()
-        } else {
-            print("⚠️ No image named \(newTextureName).png found")
+        do {
+            // Attempt to spend currency before upgrading
+            let newBalance = try await UserManager.shared.spend(userId: uid, amount: cost)
+            print("Spent \(cost). New balance: \(newBalance)")
+
+            // 🏗 Proceed with upgrade visuals and data
+            let newTextureName = "\(type)_L\(nextLevel)"
+            if let newImage = UIImage(named: newTextureName) {
+                building.texture = SKTexture(imageNamed: newTextureName)
+                building.size = building.texture!.size()
+                building.userData?["level"] = nextLevel
+                print("\(type) upgraded to level \(nextLevel)")
+                triggerMapChanged()
+            } else {
+                print("No image named \(newTextureName).png found")
+            }
+
+        } catch {
+            print("Failed to spend \(cost): \(error.localizedDescription)")
         }
     }
 
 
-    private func sell(building: SKSpriteNode, on plot: SKShapeNode) {
-        // Remove from scene and tracking; clear occupancy
-        if let idx = buildings.firstIndex(of: building) { buildings.remove(at: idx) }
-        building.removeFromParent()
-        plot.userData?["occupied"] = false // if you use this flag anywhere
-        print("🗑️ Sold building on plot \(plot.userData?["plotName"] ?? "Unknown")")
-        triggerMapChanged()
+    @MainActor
+    private func sell(building: SKSpriteNode, on plot: SKShapeNode) async {
+        // determine the amount that will be refunded based on level
+        let currentLevel = (building.userData?["level"] as? Int) ?? 1
+        let refundAmount = sellRefundAmount(for: currentLevel)
+        
+        guard let uid = self.userId else {
+            print("No userId set on GameScene")
+            return
+        }
+        do {
+            let newBalance = try await UserManager.shared.refund(userId: uid, amount: refundAmount)
+            print("Refunded \(refundAmount). New balance: \(newBalance)")
+            
+            // Remove from scene and tracking; clear occupancy
+            if let idx = buildings.firstIndex(of: building) { buildings.remove(at: idx) }
+            building.removeFromParent()
+            plot.userData?["occupied"] = false // if you use this flag anywhere
+            print("🗑️ Sold building on plot \(plot.userData?["plotName"] ?? "Unknown")")
+            triggerMapChanged()
+        } catch {
+            print("Refund failed (\(refundAmount): \(error.localizedDescription))")
+        }
     }
 
 
@@ -706,5 +785,28 @@ final class GameScene: SKScene {
             addBuilding(sprite)
         }
         print("✅ Loaded \(models.count) buildings into scene.")
+    }
+    
+    // determines amount that will be refunded based on level
+    private func sellRefundAmount(for level: Int) -> Int {
+        return max(0, level * 75) //currently set to only return 75/100 spent on an upgrade
+    }
+    
+    // determins cost to build a building
+    private func buildCost(for assetName: String) -> Int {
+        let base = baseName(from: assetName)
+        switch base {
+        case "House":
+            return 200
+        case "Barn":
+            return 300
+        default:
+            return 100
+        }
+    }
+
+    // separates the building name from the full asset Name
+    private func baseName(from assetName: String) -> String {
+        return assetName.components(separatedBy: "_").first ?? assetName
     }
 }
