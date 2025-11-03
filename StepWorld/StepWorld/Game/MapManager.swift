@@ -19,6 +19,7 @@ final class MapManager: ObservableObject {
     private var pendingSave: DispatchWorkItem?
    
     /*
+     old logic that was breaking the view
     init(skView: SKView) {
         self.skView = skView
         setupScene()
@@ -33,6 +34,10 @@ final class MapManager: ObservableObject {
         // one scene for the whole app session
                 self.scene = GameScene(size: UIScreen.main.bounds.size)
                 self.scene.scaleMode = .aspectFill
+            
+        if let uid = Auth.auth().currentUser?.uid {
+            scene.userId = uid
+        }
 
                 // wire the trigger once
                 self.scene.onMapChanged = { [weak self] in
