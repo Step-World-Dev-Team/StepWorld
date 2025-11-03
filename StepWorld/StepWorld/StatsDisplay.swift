@@ -8,6 +8,7 @@
 import SwiftUI
 import Combine
 
+/* May no longer be needed with new refresh function
 @MainActor
 final class StatsDisplayViewModel: ObservableObject {
     
@@ -34,11 +35,16 @@ final class StatsDisplayViewModel: ObservableObject {
         }
     }
 }
+ */
 
 struct StatsDisplay: View {
+    /*
     @EnvironmentObject var steps: StepManager
     @Environment(\.dismiss) private var dismiss  // for closing the view
     @StateObject private var viewModel = StatsDisplayViewModel()
+    */
+    //@EnvironmentObject private var steps: StepManager
+    @EnvironmentObject var map: MapManager
     
     var body: some View {
             //might have to correct the alignment...
@@ -56,7 +62,7 @@ struct StatsDisplay: View {
                                 .interpolation(.none)   // keeps pixel art sharp
                                 .frame(width: 25, height: 25) // smaller size
                             
-                            Text(viewModel.todaySteps?.formattedString() ?? "--")
+                            Text(map.todaySteps.formattedString())
                                 .font(.custom("Press Start 2P", size: 13))
                         }
                         HStack {
@@ -64,7 +70,7 @@ struct StatsDisplay: View {
                                 .interpolation(.none)
                                 .padding(.leading, 5)
                             
-                            Text(viewModel.balance?.formattedString() ?? "--")
+                            Text(map.balance.formattedString())
                                 .font(.custom("Press Start 2P", size: 13))
                                 .padding(.leading, 6)
                         }
@@ -73,13 +79,10 @@ struct StatsDisplay: View {
                     .padding(.bottom,6)
                 }
             }
-            .task {
-                try? await viewModel.loadCurrentUser()
             }
         }
 
     }
-}
 
 #Preview {
     StatsDisplay()
