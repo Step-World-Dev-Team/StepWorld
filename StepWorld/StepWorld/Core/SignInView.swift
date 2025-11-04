@@ -97,7 +97,7 @@ struct SignInView: View {
                                 }
                                 
                                 // kick off data loads
-                                //async let stepsTask: Void = stepManager.syncToday()
+                                async let _: Void = stepManager.syncToday()
                                 async let mapTask:   Void = try mapManager.loadFromFirestoreIfAvailable()
                                 
                                 // wait for both to finish (adjust if your funcs aren’t async/throws)

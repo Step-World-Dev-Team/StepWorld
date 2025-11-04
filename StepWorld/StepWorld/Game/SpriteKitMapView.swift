@@ -120,6 +120,10 @@ struct SpriteKitMapView: View {
                         Group {
                             if showProfile {
                                 ProfileView(onClose: {
+                                    Task {
+                                        await map.refreshNow()
+                                        print("Attempted refresh")
+                                    }
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                         showProfile = false
                                     }
@@ -152,6 +156,11 @@ struct SpriteKitMapView: View {
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear {
+            Task {
+                await map.refreshNow()
+            }
+        }
 
     }
 }
