@@ -7,12 +7,17 @@
 
 import SwiftUI
 import Combine
+import FirebaseFirestore
 
 struct SignInView: View {
     
     @StateObject private var viewModel = SignInEmailViewModel()
     @EnvironmentObject var stepManager: StepManager
     @EnvironmentObject var mapManager: MapManager
+    
+    @AppStorage("remember_me") private var rememberMe: Bool = true
+    @AppStorage("saved_email") private var savedEmail: String = ""
+    
     @State private var isSignedIn = false
     
     var body: some View {
@@ -44,6 +49,12 @@ struct SignInView: View {
                         .padding(.bottom, 170)
                         .foregroundColor(Color(red: 0.180, green: 0.118, blue: 0.071))
                         .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 2)
+                    
+                    // Toggle for Remember Me
+                    Toggle("Remember me", isOn: $rememberMe)
+                        .frame(width: 300, alignment: .leading)
+                        .tint(Color(red: 0.89, green: 0.49, blue: 0.30))
+                        .padding(.top, 8)
                     
                     // Make the space
                     Spacer()
@@ -78,10 +89,10 @@ struct SignInView: View {
                         Task {
                             do {
                                 let auth = try await viewModel.signIn()
-                                //let auth2 = try await viewModel.signIn()
+        
                                 // set ids on main actor
                                 await MainActor.run {
-                                   // stepManager.userId = auth.uid
+                                    stepManager.userId = auth.uid
                                     mapManager.userId  = auth.uid
                                 }
                                 
@@ -91,7 +102,9 @@ struct SignInView: View {
                                 
                                 // wait for both to finish (adjust if your funcs aren’t async/throws)
                                 //try await stepsTask
-                                    try await mapTask
+                                try await mapTask
+                                
+                                if rememberMe { savedEmail = viewModel.email } else { savedEmail = "" }
                                 
                                 // flip the UI flag after data is in
                                 await MainActor.run { isSignedIn = true }
@@ -120,6 +133,29 @@ struct SignInView: View {
             .navigationDestination(isPresented: $isSignedIn) {
                 SpriteKitMapView()
                     .environmentObject(mapManager)
+            }
+        }
+        .task {
+            Task {
+                // Pre-fill previously saved email
+                if !savedEmail.isEmpty {
+                    viewModel.email = savedEmail
+                }
+                
+                // Only auto-sign in if "Remember me" is enabled and Firebase has a current user
+                if rememberMe,
+                   let authed = try? AuthenticationManager.shared.getAuthenticatedUser() {
+                    
+                    // Initialize your managers
+                    stepManager.userId = authed.uid
+                    mapManager.userId  = authed.uid
+                    
+                    // Load any needed data
+                    try? await mapManager.loadFromFirestoreIfAvailable()
+                    
+                    // Move to main view
+                    isSignedIn = true
+                }
             }
         }
     }

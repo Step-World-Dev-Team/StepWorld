@@ -29,6 +29,8 @@ final class AuthenticationManager {
     static let shared = AuthenticationManager()
     private init() {}
     
+    var currentUser: User? { Auth.auth().currentUser }
+    
     // function to get user that is associated with user info
     func getAuthenticatedUser() throws -> AuthDataResultModel {
         guard let user = Auth.auth().currentUser else {
@@ -55,4 +57,12 @@ extension AuthenticationManager {
         return AuthDataResultModel(user: authDataResult.user)
     }
     
+}
+
+// MARK: SIGN OUT EMAIL
+extension AuthenticationManager {
+    
+    func signOutUser() throws {
+        try Auth.auth().signOut()
+    }
 }

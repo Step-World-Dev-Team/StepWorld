@@ -9,9 +9,13 @@ import SwiftUI
 
 struct SettingsView: View {
     var onClose: (() -> Void)? = nil
+    var onSignOut: (() -> Void)? = nil
     
     @Environment(\.dismiss) private var dismiss  // for closing the view
     
+    @StateObject private var authVM = SignInEmailViewModel()
+    
+    @AppStorage("remember_me") private var rememberMe: Bool = true
     
     var body: some View {
         ZStack {
@@ -49,10 +53,24 @@ struct SettingsView: View {
                     .foregroundColor(.black)
                     .padding(.top, 10)
                 
-                
-                
-                
-                
+                Button(role: .destructive) {
+                                    do {
+                                        try authVM.signOut()
+                                        onSignOut?()  // tell parent to route back to SignIn
+                                    } catch {
+                                        print("Sign out failed: \(error)")
+                                    }
+                                } label: {
+                                    Text("Sign Out")
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 48)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
+                                .padding(.horizontal, 24)
+                                .padding(.top, 12)
+            
                 Spacer()
             }
             

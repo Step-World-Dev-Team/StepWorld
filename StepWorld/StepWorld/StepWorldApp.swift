@@ -19,7 +19,7 @@ struct StepWorldApp: App {
         WindowGroup {
             
 
-            SignInView()
+            RootView()
                 .environmentObject(steps)
                 .environmentObject(map)
             

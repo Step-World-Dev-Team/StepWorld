@@ -10,6 +10,9 @@ import SpriteKit
 struct SpriteKitMapView: View {
     @EnvironmentObject private var map: MapManager
     
+    @AppStorage("remember_me") private var rememberMe: Bool = true
+
+    
     @State private var showProfile = false
     @State private var showSettings = false
     
@@ -126,6 +129,11 @@ struct SpriteKitMapView: View {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                         showSettings = false
                                     }
+                                }, onSignOut: {
+                                    // ✨ Trigger sign-out routing here
+                                    map.userId = nil   // optional: clear state
+                                    showSettings = false
+                                    NotificationCenter.default.post(name: .userDidSignOut, object: nil)
                                 })
                             }
                         }

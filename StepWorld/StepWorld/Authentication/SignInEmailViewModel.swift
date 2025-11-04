@@ -26,11 +26,10 @@ final class SignInEmailViewModel: ObservableObject {
         let auth = try await AuthenticationManager.shared.signInUser(email: email, password: password)
         
         print("successfully signed in")
-        
         return auth
-        
     }
     
-    // SignOut function will go here
-    // along with any other functions
+    func signOut() throws {
+            try AuthenticationManager.shared.signOutUser()
+        }
 }
