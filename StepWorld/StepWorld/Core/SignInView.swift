@@ -81,12 +81,12 @@ struct SignInView: View {
                                 //let auth2 = try await viewModel.signIn()
                                 // set ids on main actor
                                 await MainActor.run {
-                                   // stepManager.userId = auth.uid
+                                   stepManager.userId = auth.uid
                                     mapManager.userId  = auth.uid
                                 }
                                 
                                 // kick off data loads
-                                //async let stepsTask: Void = stepManager.syncToday()
+                                async let stepsTask: Void = stepManager.syncToday()
                                 async let mapTask:   Void = try mapManager.loadFromFirestoreIfAvailable()
                                 
                                 // wait for both to finish (adjust if your funcs aren’t async/throws)
