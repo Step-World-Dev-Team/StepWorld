@@ -12,6 +12,8 @@ import Combine
 @MainActor
 final class MapManager: ObservableObject {
     var userId: String?
+    @Published var balance: Int = 0
+    @Published var todaySteps: Int = 0
     
     //private var scene: GameScene?
     //private var skView: SKView?
@@ -54,13 +56,23 @@ final class MapManager: ObservableObject {
     private func scheduleSave() {
         print("made it to scheduleSave")
         pendingSave?.cancel()
-        let job = DispatchWorkItem { [weak self] in self?.saveMapForCurrentUser() }
+        
+        let job = DispatchWorkItem { [weak self] in
+            guard let self = self else {return}
+            Task {
+                do {try await self.saveMapForCurrentUser()
+                    await self.refreshStepsAndBalance()
+                } catch {
+                    print("Save failed:", error.localizedDescription)
+                }
+            }
+        }
         pendingSave = job
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: job)
     }
     
     // actual save
-    private func saveMapForCurrentUser() {
+    private func saveMapForCurrentUser() async throws {
        //guard let scene = scene else { return }
         guard let uid = Auth.auth().currentUser?.uid else {
             print("No signed-in user; skipping save.")
@@ -89,6 +101,36 @@ final class MapManager: ObservableObject {
         }
     }
     
+    // refresh helper (steps + balance), called after save completes
+    @MainActor
+    private func refreshStepsAndBalance(date: Date = Date()) async {
+        guard let uid = scene.userId ?? Auth.auth().currentUser?.uid else { return }
+        
+        let currentBalance = self.balance
+
+        async let steps: Int = {
+            do {
+                if let m = try await UserManager.shared.getDailyMetrics(userId: uid, date: date) {
+                    return m.stepCount
+                } else { return 0 }
+            } catch { return 0 }
+        }()
+
+        async let coins: Int = {
+                do {
+                    return try await UserManager.shared.getBalance(userId: uid)
+                } catch {
+                    return currentBalance // ✅ safe captured value
+                }
+            }()
+
+        let (s, b) = await (steps, coins)
+        await MainActor.run {
+            self.todaySteps = s
+            self.balance = b
+        }
+    }
+    
     // MARK: - Load on startup (typed [Building] version)
     @MainActor
     func loadFromFirestoreIfAvailable() async throws{
@@ -113,6 +155,32 @@ final class MapManager: ObservableObject {
             }
         }
     }
+    
+    // function to refresh at any point in time (public)
+    func refreshNow(date: Date = Date()) async {
+            guard let uid = scene.userId ?? Auth.auth().currentUser?.uid else { return }
+
+            // ⬅️ capture while on MainActor
+            let currentBalance = self.balance
+
+            async let steps: Int = {
+                do {
+                    if let m = try await UserManager.shared.getDailyMetrics(userId: uid, date: date) {
+                        return m.stepCount
+                    } else { return 0 }
+                } catch { return 0 }
+            }()
+
+            async let coins: Int = {
+                do { return try await UserManager.shared.getBalance(userId: uid) }
+                catch { return currentBalance }   // ⬅️ use snapshot
+            }()
+
+            let (s, b) = await (steps, coins)
+            self.todaySteps = s
+            self.balance = b
+        print("ATTEMPTED REFRESH-NOW")
+        }
 
     
     /*
