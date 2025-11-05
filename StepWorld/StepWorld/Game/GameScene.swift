@@ -3,12 +3,6 @@
 //  StepWorld
 //
 //  Created by Anali Cardoza on 10/24/25.
-//
-//  GameScene.swift
-//  StepWorld
-//
-//  Created by Anali Cardoza on 10/24/25.
-//
 
 import SpriteKit
 import UIKit
@@ -88,7 +82,7 @@ final class GameScene: SKScene {
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
-        background = SKSpriteNode(imageNamed: "FarmBackground")
+        background = SKSpriteNode(imageNamed: "EmptyMap")
         background.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         background.position = .zero
         background.zPosition = -10
@@ -194,7 +188,13 @@ final class GameScene: SKScene {
                 nameLabel.zPosition = 20
                 nameLabel.setScale(1.0 / cameraNode.xScale)
                 nameLabel.name = "plotNameLabel"
+                nameLabel.alpha = 0; // makes plot name invisible to player
                 plot.addChild(nameLabel)
+                
+                if !isPlotOccupied(plot) {
+                    attachForSaleSign(to: plot, plotSize: size)
+                }
+
             }
         }
 
@@ -228,6 +228,10 @@ final class GameScene: SKScene {
             addChild(p)
             plotNodes.append(p)
             stylePlot(p, size: size)
+            if !isPlotOccupied(p) {
+                attachForSaleSign(to: p, plotSize: size)
+            }
+
 
             let label = SKLabelNode(text: names[i])
             label.fontName = ".SFUI-Semibold"
@@ -243,9 +247,92 @@ final class GameScene: SKScene {
         }
         print("🟠 DEBUG: Using 3 fallback plots (no object layer found).")
     }
-
-    // MARK: - Plot styling (SUBTLE glow)
+    // MARK: - Plot styling
     private func stylePlot(_ plot: SKShapeNode, size: CGSize) {
+        // Subtle, non-distracting base
+        plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
+        plot.strokeColor = .clear
+        plot.lineWidth   = 0
+        plot.glowWidth   = plotGlow
+        plot.blendMode   = .alpha
+        
+        // Softer pulsing ring
+        let ringSize = CGSize(width: size.width * ringScale, height: size.height * ringScale)
+        let ring = SKShapeNode(rectOf: ringSize, cornerRadius: 10)
+        ring.strokeColor = UIColor.white.withAlphaComponent(0.45)
+        ring.lineWidth   = 1.5
+        ring.glowWidth   = 5
+        ring.alpha       = ringAlpha
+        ring.blendMode   = .alpha
+        ring.zPosition   = 6
+        plot.addChild(ring)
+
+        let up   = SKAction.group([.fadeAlpha(to: 0.5, duration: 1.2),
+                                   .scale(to: 1.04, duration: 1.2)])
+        let down = SKAction.group([.fadeAlpha(to: 0.3, duration: 1.2),
+                                   .scale(to: 1.00, duration: 1.2)])
+        ring.run(.repeatForever(.sequence([up, down])))
+
+
+        // Hidden by default; shown only when selected
+        ensureCornerBrackets(on: plot, size: size, visible: false)
+    }
+
+    private func ensureCornerBrackets(on plot: SKShapeNode, size: CGSize, visible: Bool) {
+        if let existing = plot.childNode(withName: "cornerBrackets") {
+            existing.isHidden = !visible
+            return
+        }
+
+        let tex = SKTexture(imageNamed: "PlotCorner") // your bracket image in Assets
+        let container = SKNode()
+        container.name = "cornerBrackets"
+        container.zPosition = 999
+        container.isHidden = !visible
+        plot.addChild(container)
+
+        let bracketSize = CGSize(width: 18, height: 18) // tweak to your art
+
+        func makeCorner(x: CGFloat, y: CGFloat, flipX: Bool, flipY: Bool) -> SKSpriteNode {
+            let n = SKSpriteNode(texture: tex)
+            n.size = bracketSize
+            n.position = CGPoint(x: x, y: y)
+            n.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+            n.xScale = flipX ? -1 : 1
+            n.yScale = flipY ? -1 : 1
+            return n
+        }
+
+        let halfW = size.width  * 0.5
+        let halfH = size.height * 0.5
+        let inset: CGFloat = 2
+
+        let tl = makeCorner(x: -halfW + inset, y:  halfH - inset, flipX: false, flipY: true)
+        let tr = makeCorner(x:  halfW - inset, y:  halfH - inset, flipX: true,  flipY: true)
+        let bl = makeCorner(x: -halfW + inset, y: -halfH + inset, flipX: false, flipY: false)
+        let br = makeCorner(x:  halfW - inset, y: -halfH + inset, flipX: true,  flipY: false)
+
+        [tl, tr, bl, br].forEach { container.addChild($0) }
+    }
+
+    private func setPlotSelected(_ plot: SKShapeNode, selected: Bool) {
+        if selected {
+            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.18)
+            plot.strokeColor = UIColor.systemGreen
+            plot.lineWidth   = 3
+        } else {
+            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
+            plot.strokeColor = UIColor.systemGreen.withAlphaComponent(0.65)
+            plot.lineWidth   = 2
+        }
+
+        let size = (plot.path?.boundingBox.size) ?? .zero
+        ensureCornerBrackets(on: plot, size: size, visible: selected)
+        plot.childNode(withName: "cornerBrackets")?.isHidden = !selected
+    }
+
+
+    /*private func stylePlot(_ plot: SKShapeNode, size: CGSize) {
         // Softer base
         plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
         plot.strokeColor = UIColor.systemGreen.withAlphaComponent(0.65)
@@ -308,6 +395,7 @@ final class GameScene: SKScene {
             plot.lineWidth   = 2
         }
     }
+     */
 
     // MARK: - HUD
     private func setupHUD() {
@@ -324,6 +412,8 @@ final class GameScene: SKScene {
         label.position = CGPoint(x: size.width/2 - 10, y: size.height/2 - 10)
         hudRoot.addChild(label)
         hudLabel = label
+        hudLabel?.isHidden = true
+
     }
 
     private func rescalePlotNameLabelsForCamera() {
@@ -337,6 +427,32 @@ final class GameScene: SKScene {
 
     // MARK: - Gestures
     @objc private func pinchGesture(_ sender: UIPinchGestureRecognizer) {
+        // Hide brackets / menus immediately when zooming begins
+        if sender.state == .began {
+            if selectedPlot != nil { clearSelection() }
+            panVelocity = .zero // cancel inertia while pinching
+        }
+
+        guard let camera = camera else { return }
+
+        if sender.state == .changed {
+            var target = camera.xScale / sender.scale
+            target = max(minZoom, min(maxZoom, target))
+            camera.setScale(target)
+            sender.scale = 1.0
+
+            // If you keep plot-name labels around (alpha = 0), this keeps them crisp.
+            rescalePlotNameLabelsForCamera()
+
+            clampCameraToMap()
+        }
+
+        if sender.state == .ended || sender.state == .cancelled || sender.state == .failed {
+            // no special action needed; leaving here for symmetry
+        }
+    }
+
+   /* @objc private func pinchGesture(_ sender: UIPinchGestureRecognizer) {
         guard let camera = camera else { return }
         if sender.state == .changed {
             var target = camera.xScale / sender.scale
@@ -347,8 +463,14 @@ final class GameScene: SKScene {
             clampCameraToMap()
         }
     }
+    */
+    private func clearSelection() {
+        for p in plotNodes { setPlotSelected(p, selected: false) }
+        selectedPlot = nil
+        dismissBuildMenu()
+    }
 
-    @objc private func panGesture(_ sender: UIPanGestureRecognizer) {
+    /*@objc private func panGesture(_ sender: UIPanGestureRecognizer) {
         guard let view = self.view else { return }
         let t = sender.translation(in: view)
         sender.setTranslation(.zero, in: view)
@@ -364,6 +486,29 @@ final class GameScene: SKScene {
             panVelocity = .zero
         }
     }
+     */
+    @objc private func panGesture(_ sender: UIPanGestureRecognizer) {
+        // 🔹 clear selection as soon as the user starts dragging the map
+        if sender.state == .began, selectedPlot != nil {
+            clearSelection()
+        }
+
+        guard let view = self.view else { return }
+        let t = sender.translation(in: view)
+        sender.setTranslation(.zero, in: view)
+
+        cameraNode.position.x -= t.x * cameraNode.xScale
+        cameraNode.position.y += t.y * cameraNode.yScale
+        clampCameraToMap()
+
+        if sender.state == .ended {
+            let v = sender.velocity(in: view)
+            panVelocity = CGPoint(x: -v.x * cameraNode.xScale, y: v.y * cameraNode.yScale)
+        } else {
+            panVelocity = .zero
+        }
+    }
+
 
     // MARK: - Camera helpers
     private func centerCamera() { cameraNode.position = .zero }
@@ -398,6 +543,64 @@ final class GameScene: SKScene {
         panVelocity.x *= factor; panVelocity.y *= factor
         if abs(panVelocity.x) < 5 && abs(panVelocity.y) < 5 { panVelocity = .zero }
     }
+    private func attachForSaleSign(to plot: SKShapeNode, plotSize: CGSize) {
+        // Avoid duplicates
+        if plot.childNode(withName: "forSaleSign") != nil { return }
+
+        // Root node for easy cleanup
+        let signNode = SKNode()
+        signNode.name = "forSaleSign"
+        signNode.zPosition = 30
+
+        // --- Post ---
+        let postWidth: CGFloat = 4
+        let postHeight: CGFloat = 20
+        let post = SKShapeNode(rectOf: CGSize(width: postWidth, height: postHeight), cornerRadius: 1.5)
+        post.fillColor = .brown
+        post.strokeColor = .clear
+        post.position = CGPoint(x: 0, y: postHeight / 2)
+        signNode.addChild(post)
+
+        // --- Signboard ---
+        let boardSize = CGSize(width: 60, height: 20)
+        let board = SKShapeNode(rectOf: boardSize, cornerRadius: 3)
+        board.fillColor = UIColor.white
+        board.strokeColor = UIColor.darkGray
+        board.lineWidth = 1.2
+        board.position = CGPoint(x: 0, y: postHeight)
+        signNode.addChild(board)
+
+        // --- Text ---
+        let label = SKLabelNode(text: "For Sale")
+        label.fontName = "PressStart2P-Regular"
+        label.fontSize = 6
+        label.fontColor = .red
+        label.verticalAlignmentMode = .center
+        label.zPosition = 1
+        board.addChild(label)
+
+        // --- Position sign above plot ---
+        let yAbove = plotSize.height * 0.5 + 10
+        signNode.position = CGPoint(x: 0, y: yAbove)
+        signNode.setScale(1.0 / cameraNode.xScale) // stay same size on screen
+        plot.addChild(signNode)
+
+        // --- Optional gentle animation ---
+        let up = SKAction.moveBy(x: 0, y: 2, duration: 0.8)
+        up.timingMode = .easeInEaseOut
+        let down = up.reversed()
+        signNode.run(.repeatForever(.sequence([up, down])))
+    }
+    private func rescaleWorldBillboardsForCamera() {
+        let inv = 1.0 / cameraNode.xScale
+        for plot in plotNodes {
+            for child in plot.children where
+                child.name == "plotNameLabel" || child.name == "forSaleSign" {
+                child.setScale(inv)
+            }
+        }
+    }
+
 
     // MARK: - Touch → plot select → build menu
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -669,6 +872,8 @@ final class GameScene: SKScene {
         triggerMapChanged()
 
         print("🏠 Placed \(assetName) (level \(level)) on \(plot.userData?["plotName"] ?? "UnknownPlot")")
+        selectedPlot?.childNode(withName: "forSaleSign")?.removeFromParent()
+
     }
 
 
@@ -737,9 +942,17 @@ final class GameScene: SKScene {
             building.removeFromParent()
             plot.userData?["occupied"] = false // if you use this flag anywhere
             print("🗑️ Sold building on plot \(plot.userData?["plotName"] ?? "Unknown")")
-            triggerMapChanged()
+            // ✅ Re-add the "For Sale" sign after the sale succeeds
+                   let size = (plot.path?.boundingBox.size) ?? .zero
+                   attachForSaleSign(to: plot, plotSize: size)
+                   rescaleWorldBillboardsForCamera()
+
+                   triggerMapChanged()
         } catch {
             print("Refund failed (\(refundAmount): \(error.localizedDescription))")
+            
+            let size = (plot.path?.boundingBox.size) ?? .zero
+            attachForSaleSign(to: plot, plotSize: size)
         }
     }
 
