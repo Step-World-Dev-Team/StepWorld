@@ -55,7 +55,7 @@
     <property name="name" value="TopLeftPlot"/>
    </properties>
   </object>
-  <object id="16" name="Plot02" x="176.218" y="352.437" width="158.285" height="109.162">
+  <object id="16" name="Plot02" x="176.218" y="352.437" width="200.00" height="120.00">
    <properties>
     <property name="buildable" type="bool" value="true"/>
     <property name="cost" type="int" value="10"/>
