@@ -12,6 +12,7 @@
 
 import SpriteKit
 import UIKit
+import FirebaseAuth
 
 /// Requires TMXPlotLoader.swift in the same target (with top-level TMXMapInfo & PlotObject).
 
@@ -77,7 +78,7 @@ final class GameScene: SKScene {
     
     // MARK: - Database
     var onMapChanged: (() -> Void)?
-    var userId: String!
+    var userId: String?
     
     private func triggerMapChanged() {
         onMapChanged?()
@@ -598,7 +599,7 @@ final class GameScene: SKScene {
                         // Run async spending logic in a Task
                         Task { [weak self] in
                             guard let self = self else { return }
-                            guard let uid = self.userId else {
+                            guard let uid = self.userId ?? Auth.auth().currentUser?.uid else {
                                 print("No userId set on GameScene")
                                 return
                             }
@@ -802,7 +803,7 @@ final class GameScene: SKScene {
         
         // Example: define upgrade cost logic
         let cost = nextLevel * 100  // cost currently set to 100 times the level of the building
-        guard let uid = self.userId else {
+        guard let uid = self.userId ?? Auth.auth().currentUser?.uid else {
             print("No userId set on GameScene");
             return
         }
@@ -838,7 +839,7 @@ final class GameScene: SKScene {
         let currentLevel = (building.userData?["level"] as? Int) ?? 1
         let refundAmount = sellRefundAmount(for: currentLevel)
         
-        guard let uid = self.userId else {
+        guard let uid = self.userId ?? Auth.auth().currentUser?.uid else {
             print("No userId set on GameScene")
             return
         }

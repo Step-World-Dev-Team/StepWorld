@@ -18,6 +18,7 @@ struct RootView: View {
     @AppStorage("remember_me") private var rememberMe: Bool = true
 
     @State private var isSignedIn = false
+    @State private var authHandle: AuthStateDidChangeListenerHandle?
 
     var body: some View {
         Group {
@@ -29,25 +30,30 @@ struct RootView: View {
                 SignInView()
             }
         }
-        .task {
-            if rememberMe,
-               let authed = try? AuthenticationManager.shared.getAuthenticatedUser() {
-                stepManager.userId = authed.uid
-                mapManager.userId  = authed.uid
-                try? await mapManager.loadFromFirestoreIfAvailable()
-                isSignedIn = true
-            }
-        }
-        // ✨ listen for the sign-out notification
-        .onReceive(NotificationCenter.default.publisher(for: .userDidSignOut)) { _ in
-            do {
-                try AuthenticationManager.shared.signOutUser()
-            } catch {
-                print("Sign-out failed: \(error)")
-            }
-            stepManager.userId = nil
-            mapManager.userId = nil
-            isSignedIn = false
-        }
+       
+        .onAppear {
+                    authHandle = Auth.auth().addStateDidChangeListener { _, user in
+                        Task { @MainActor in
+                            let signedIn = (user != nil)
+                            isSignedIn = signedIn
+                            if signedIn, let authed = try? AuthenticationManager.shared.getAuthenticatedUser() {
+                                stepManager.userId = authed.uid
+                                mapManager.userId  = authed.uid   // propagates to scene via didSet, if you added that
+                                try? await mapManager.loadFromFirestoreIfAvailable()
+                            } else {
+                                stepManager.userId = nil
+                                mapManager.userId  = nil
+                                mapManager.scene.userId = nil
+                            }
+                            print("👂 Auth state changed → signedIn=\(signedIn)")
+                        }
+                    }
+                }
+                .onDisappear {
+                    if let h = authHandle {
+                        Auth.auth().removeStateDidChangeListener(h)
+                        authHandle = nil
+                    }
+                }
     }
 }

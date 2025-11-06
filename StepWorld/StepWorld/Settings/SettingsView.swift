@@ -13,7 +13,7 @@ struct SettingsView: View {
     
     @Environment(\.dismiss) private var dismiss  // for closing the view
     
-    @StateObject private var authVM = SignInEmailViewModel()
+    //@StateObject private var authVM = AuthenticationViewModel()
     
     @AppStorage("remember_me") private var rememberMe: Bool = true
     
@@ -52,7 +52,8 @@ struct SettingsView: View {
                     .font(.custom("Press Start 2P", size: 25))
                     .foregroundColor(.black)
                     .padding(.top, 10)
-                
+               
+                /*
                 Button(role: .destructive) {
                                     do {
                                         try authVM.signOut()
@@ -60,6 +61,19 @@ struct SettingsView: View {
                                     } catch {
                                         print("Sign out failed: \(error)")
                                     }
+                                } label: {
+                                    Text("Sign Out")
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 48)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
+                                .padding(.horizontal, 24)
+                                .padding(.top, 12)
+                 */
+                Button(role: .destructive) {
+                                    onSignOut?()
                                 } label: {
                                     Text("Sign Out")
                                         .font(.headline)

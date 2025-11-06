@@ -389,5 +389,25 @@ extension DBUser {
     }
 }
 
+// MARK: Helper Functions
+extension UserManager {
+    func ensureUserExists(for auth: AuthDataResultModel) async throws {
+            do {
+                _ = try await getUser(userId: auth.uid)
+            } catch {
+                let newUser = DBUser.fromAuth(auth)
+                try await Firestore.firestore().collection("Users")
+                    .document(auth.uid)
+                    .setData([
+                        "user_id": newUser.userId,
+                        "email": newUser.email ?? "",
+                        "photo_url": newUser.photoUrl ?? "",
+                        "name": newUser.name ?? "",
+                        "balance": newUser.balance ?? 0
+                    ], merge: true)
+            }
+        }
+}
+
 // TODO: Refactor encoder and decoder functions
 // MARK: Encoder-Decoder Functions

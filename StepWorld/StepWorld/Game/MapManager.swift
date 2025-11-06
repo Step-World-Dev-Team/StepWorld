@@ -38,7 +38,7 @@ final class MapManager: ObservableObject {
                 self.scene.scaleMode = .aspectFill
             
         if let uid = Auth.auth().currentUser?.uid {
-            scene.userId = uid
+            self.userId = uid
         }
 
                 // wire the trigger once

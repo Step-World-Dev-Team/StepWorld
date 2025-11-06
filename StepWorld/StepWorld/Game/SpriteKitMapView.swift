@@ -6,12 +6,13 @@
 //
 import SwiftUI
 import SpriteKit
+import FirebaseAuth
 
 struct SpriteKitMapView: View {
     @EnvironmentObject private var map: MapManager
     
     @AppStorage("remember_me") private var rememberMe: Bool = true
-
+    
     
     @State private var showProfile = false
     @State private var showSettings = false
@@ -22,15 +23,15 @@ struct SpriteKitMapView: View {
         ZStack {
             SpriteView(scene: map.scene)
                 .ignoresSafeArea()
-
+            
             Color.clear
-                // Top-right stats
+            // Top-right stats
                 .overlay(alignment: .topTrailing) {
                     StatsDisplay()
                         .padding(.top, 4)
                         .padding(.trailing, 6)
                 }
-                // Bottom bar with 4 buttons (profile opens modal)
+            // Bottom bar with 4 buttons (profile opens modal)
                 .overlay(alignment: .bottom) {
                     HStack(spacing: 0) {
                         ForEach(1...4, id: \.self) { index in
@@ -46,7 +47,7 @@ struct SpriteKitMapView: View {
                                         .offset(x: 0, y: 46)
                                         .frame(maxWidth: .infinity)
                                 }
-
+                                
                             case 2:
                                 Button {
                                     print("Money tapped")
@@ -58,7 +59,7 @@ struct SpriteKitMapView: View {
                                         .offset(x: 0, y: 46)
                                         .frame(maxWidth: .infinity)
                                 }
-
+                                
                             case 3:
                                 Button {
                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
@@ -72,7 +73,7 @@ struct SpriteKitMapView: View {
                                         .offset(x: 0, y: 46)
                                         .frame(maxWidth: .infinity)
                                 }
-
+                                
                             case 4:
                                 Button {
                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
@@ -86,20 +87,20 @@ struct SpriteKitMapView: View {
                                         .offset(x: 0, y: 46)
                                         .frame(maxWidth: .infinity)
                                 }
-
+                                
                             default:
                                 EmptyView()
                             }
                         }
-
+                        
                     }
                     .padding(.vertical, 12)
                     .ignoresSafeArea(edges: .bottom)
                     .allowsHitTesting(!isModalPresented)
                     .zIndex(1)
                 }
-
-
+            
+            
             if isModalPresented {
                 ZStack {
                     // Dim fades independently
@@ -114,7 +115,7 @@ struct SpriteKitMapView: View {
                                 showSettings = false
                             }
                         }
-
+                    
                     // Choose which popup to show
                     GeometryReader { g in
                         Group {
@@ -134,10 +135,16 @@ struct SpriteKitMapView: View {
                                         showSettings = false
                                     }
                                 }, onSignOut: {
-                                    // ✨ Trigger sign-out routing here
-                                    map.userId = nil   // optional: clear state
-                                    showSettings = false
-                                    NotificationCenter.default.post(name: .userDidSignOut, object: nil)
+                                    Task { @MainActor in
+                                        do {
+                                            try AuthenticationManager.shared.signOutUser()   // ← this triggers the listener
+                                            map.userId = nil                                 // optional: clear local state
+                                            showSettings = false
+                                            print("📤 signOut requested from SettingsView")
+                                        } catch {
+                                            print("❌ signOut failed: \(error)")
+                                        }
+                                    }
                                 })
                             }
                         }
@@ -152,16 +159,19 @@ struct SpriteKitMapView: View {
                 }
                 .zIndex(100)
             }
-
+            
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
+            if map.scene.userId == nil {
+                map.scene.userId = map.userId ?? Auth.auth().currentUser?.uid
+            }
             Task {
                 await map.refreshNow()
             }
         }
-
+        
     }
 }
 
