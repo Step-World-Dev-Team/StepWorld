@@ -12,7 +12,7 @@ import UIKit
 final class GameScene: SKScene {
 
     // MARK: - Config
-    private let tmxName = "EmptyMap"
+    private let tmxName = "BiggerMap"
     private let plotLayerName = "Building"        // must match Tiled Object Layer name exactly
 
     private let minZoom: CGFloat = 0.25 // was 0.55
@@ -39,7 +39,7 @@ final class GameScene: SKScene {
     private let baseBuildingScale: CGFloat = 0.6
     private let buildingScaleOverrides: [String: CGFloat] = [
         "House": 0.8,
-        "Barn":  0.8
+        "Barn":  1
     ]
 
     // MARK: - Data
@@ -82,7 +82,7 @@ final class GameScene: SKScene {
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
-        background = SKSpriteNode(imageNamed: "EmptyMap")
+        background = SKSpriteNode(imageNamed: "FarmBackground")
         background.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         background.position = .zero
         background.zPosition = -10
@@ -96,6 +96,7 @@ final class GameScene: SKScene {
         camera = cameraNode
         addChild(cameraNode)
         cameraNode.setScale(initialZoom)
+        rescaleWorldBillboardsForCamera()
         centerCamera()
         clampCameraToMap()
 
@@ -104,9 +105,15 @@ final class GameScene: SKScene {
 
         // Gestures
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinchGesture(_:)))
+        pinch.cancelsTouchesInView = false
+        pinch.delaysTouchesBegan = false
+        pinch.delaysTouchesEnded = false
         view.addGestureRecognizer(pinch); pinchGR = pinch
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(panGesture(_:)))
+        pan.cancelsTouchesInView = false
+        pan.delaysTouchesBegan = false
+        pan.delaysTouchesEnded = false
         view.addGestureRecognizer(pan); panGR = pan
 
         print("✅ GameScene ready. plots=\(plotNodes.count) zoom=\(cameraNode.xScale)")
@@ -128,6 +135,63 @@ final class GameScene: SKScene {
         let top  =  mapH * 0.5
         return CGPoint(x: left + pt.x, y: top - pt.y)
     }
+    
+    // MARK: - Plot rules
+    
+    // New Code
+    private struct PlotRule {
+        let allowed: [String]
+        let maxLevel: [String: Int]
+        let anchor: CGPoint
+        let perBuildingAnchor: [String: CGPoint]
+    }
+
+    private var plotRules: [String: PlotRule] = [
+        // Example names match what you assign in TMX or in buildDebugPlots()
+        // "top left plot" / "plot 1" → use the actual names you see in logs
+        "Plot01": PlotRule(
+                    allowed: ["House"],
+                    maxLevel: ["House": 3],
+                    anchor: CGPoint(x: 0.50, y: 0.6),
+                    perBuildingAnchor: [:]),
+        "Plot02": PlotRule(
+            allowed: ["Barn", "House"],
+            maxLevel: ["Barn": 4, "House": 3],
+            anchor: CGPoint(x: 0.5, y: 0.5),
+            perBuildingAnchor: ["Barn": CGPoint(x: 0.55, y: 0.55)]),
+        "Plot03": PlotRule(
+                    allowed: ["Barn", "House"],
+                    maxLevel: ["Barn": 4, "House": 3],
+                    anchor: CGPoint(x: 0.5, y: 0.5),
+                    perBuildingAnchor: ["Barn": CGPoint(x: 0.50, y: 0.55)])
+        // Add more as needed...
+    ]
+    
+    private func positionFor(assetName: String, on plot: SKShapeNode) -> CGPoint {
+        let plotName = (plot.userData?["plotName"] as? String) ?? ""
+        let rule = plotRules[plotName]
+        let base = rule?.anchor ?? CGPoint(x: 0.5, y: 0.5)
+        let perType = rule?.perBuildingAnchor[assetName]
+        let anchor = perType ?? base
+
+        // Need the plot size to compute an offset from the plot center
+        let size = (plot.userData?["plotSize"] as? NSValue)?.cgSizeValue ?? .zero
+
+        // Convert normalized anchor → local offset from center:
+        // (0.5,0.5) is center → (0,0) offset. (1,1) is top-right → (+halfW,+halfH)
+        let halfW = size.width * 0.5
+        let halfH = size.height * 0.5
+        let local = CGPoint(
+            x: (anchor.x - 0.5) * (size.width),
+            y: (anchor.y - 0.5) * (size.height)
+        )
+
+        // Plot node is already centered at the plot’s center
+        return CGPoint(x: plot.position.x + local.x,
+                       y: plot.position.y + local.y)
+    }
+    // New Code
+    
 
     /// Build centered, full-size plot overlays from the TMX object layer
     @discardableResult
@@ -140,6 +204,7 @@ final class GameScene: SKScene {
         self.tmxPlots = plotObjs
 
         background.size = info.pixelSize
+        
 
         // Clear previous
         plotNodes.forEach { $0.removeFromParent() }
@@ -151,12 +216,13 @@ final class GameScene: SKScene {
         border.lineWidth = 1.0
         border.zPosition = -1
         addChild(border)
+        
 
         for p in plotObjs {
             let rect = p.rectPx
             print("TMX Plot '\(p.name)' px rect:", rect)
             if rect.width < 32 || rect.height < 32 {
-                print("⚠️ Plot '\(p.name)' is very small. In Tiled, make sure it's a Rectangle object with real size.")
+                print("Plot '\(p.name)' is very small. In Tiled, make sure it's a Rectangle object with real size.")
             }
 
             let centerPx = CGPoint(x: rect.midX, y: rect.midY)
@@ -170,6 +236,7 @@ final class GameScene: SKScene {
 
             if plot.userData == nil { plot.userData = [:] }
             plot.userData?["plotName"] = p.name
+            plot.userData?["plotSize"] = NSValue(cgSize: size)
 
             addChild(plot)
             plotNodes.append(plot)
@@ -249,34 +316,59 @@ final class GameScene: SKScene {
     }
     // MARK: - Plot styling
     private func stylePlot(_ plot: SKShapeNode, size: CGSize) {
-        // Subtle, non-distracting base
-        plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
+        plot.fillColor = UIColor.white.withAlphaComponent(0.001) // invisible but hittable
         plot.strokeColor = .clear
-        plot.lineWidth   = 0
-        plot.glowWidth   = plotGlow
-        plot.blendMode   = .alpha
-        
-        // Softer pulsing ring
+        plot.lineWidth = 0
+        plot.glowWidth = 0
+        plot.blendMode = .alpha
+
+        _ = getOrCreateRing(on: plot, size: size)    // create once, hidden
+        ensureCornerBrackets(on: plot, size: size, visible: false)
+
+    }
+    private func getOrCreateRing(on plot: SKShapeNode, size: CGSize) -> SKShapeNode {
+        if let existing = plot.childNode(withName: "pulseRing") as? SKShapeNode {
+            return existing
+        }
+
         let ringSize = CGSize(width: size.width * ringScale, height: size.height * ringScale)
         let ring = SKShapeNode(rectOf: ringSize, cornerRadius: 10)
-        ring.strokeColor = UIColor.white.withAlphaComponent(0.45)
-        ring.lineWidth   = 1.5
-        ring.glowWidth   = 5
-        ring.alpha       = ringAlpha
-        ring.blendMode   = .alpha
-        ring.zPosition   = 6
-        plot.addChild(ring)
+        ring.name = "pulseRing"
+        ring.strokeColor = UIColor.white.withAlphaComponent(0.9)
+        ring.lineWidth = 1.2
+        ring.glowWidth = 8.0
+        ring.alpha = 0.6
+        ring.isHidden = true
+        ring.zPosition = 12
 
-        let up   = SKAction.group([.fadeAlpha(to: 0.5, duration: 1.2),
-                                   .scale(to: 1.04, duration: 1.2)])
-        let down = SKAction.group([.fadeAlpha(to: 0.3, duration: 1.2),
-                                   .scale(to: 1.00, duration: 1.2)])
+        let up   = SKAction.group([
+            .fadeAlpha(to: 0.5, duration: 1.4),
+            .scale(to: 1.03, duration: 1.4)
+        ])
+        let down = SKAction.group([
+            .fadeAlpha(to: 0.25, duration: 1.4),
+            .scale(to: 1.00, duration: 1.4)
+        ])
         ring.run(.repeatForever(.sequence([up, down])))
 
-
-        // Hidden by default; shown only when selected
-        ensureCornerBrackets(on: plot, size: size, visible: false)
+        plot.addChild(ring)
+        return ring
     }
+    
+    private func setPlotSelected(_ plot: SKShapeNode, selected: Bool) {
+        let size = (plot.path?.boundingBox.size) ?? .zero
+        ensureCornerBrackets(on: plot, size: size, visible: selected)
+
+        if let ring = plot.childNode(withName: "pulseRing") {
+            ring.isHidden = !selected
+        }
+
+        // no border, no fill
+        plot.strokeColor = .clear
+        plot.fillColor = .clear
+    }
+
+
 
     private func ensureCornerBrackets(on plot: SKShapeNode, size: CGSize, visible: Bool) {
         if let existing = plot.childNode(withName: "cornerBrackets") {
@@ -315,7 +407,7 @@ final class GameScene: SKScene {
         [tl, tr, bl, br].forEach { container.addChild($0) }
     }
 
-    private func setPlotSelected(_ plot: SKShapeNode, selected: Bool) {
+    /*private func setPlotSelected(_ plot: SKShapeNode, selected: Bool) {
         if selected {
             plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.18)
             plot.strokeColor = UIColor.systemGreen
@@ -330,7 +422,7 @@ final class GameScene: SKScene {
         ensureCornerBrackets(on: plot, size: size, visible: selected)
         plot.childNode(withName: "cornerBrackets")?.isHidden = !selected
     }
-
+        */
 
     /*private func stylePlot(_ plot: SKShapeNode, size: CGSize) {
         // Softer base
@@ -443,7 +535,7 @@ final class GameScene: SKScene {
 
             // If you keep plot-name labels around (alpha = 0), this keeps them crisp.
             rescalePlotNameLabelsForCamera()
-
+            rescaleWorldBillboardsForCamera() //adjusts for sale sign to return as og size
             clampCameraToMap()
         }
 
@@ -632,17 +724,36 @@ final class GameScene: SKScene {
 
     // MARK: - Build menu (fixed layout: no overlap)
     private func showBuildMenu() {
+        
+        //New code
+        guard let plot = selectedPlot else { return }
+
+        // Figure out which buildings are allowed on this plot
+        let plotName = (plot.userData?["plotName"] as? String) ?? ""
+        let allowed = plotRules[plotName]?.allowed ?? availableBuildings  // fallback to current global
+        guard !allowed.isEmpty else {
+            // Tiny notice if nothing is allowed
+            print("No buildings allowed on \(plotName)")
+            return
+        }
+        //New code
+        
+        
         dismissBuildMenu()
         let menu = SKNode(); menu.zPosition = 10_001
         cameraNode.addChild(menu); buildMenu = menu
 
         // Compute panel height: header + N*(btn+gap) - last gap + footer
-        let buttonsBlockH = CGFloat(availableBuildings.count) * (menuButtonH + menuGap) - menuGap
+        
+        //Changed availableBuildings.count to allowed.count
+        let buttonsBlockH = CGFloat(allowed.count) * (menuButtonH + menuGap) - menuGap
         let panelH = menuHeaderPad + buttonsBlockH + menuFooterPad
         let panelSize = CGSize(width: panelWidth, height: panelH)
 
         // Panel
         let panel = SKShapeNode(rectOf: panelSize, cornerRadius: 14)
+        
+        
         panel.fillColor = UIColor.systemBackground.withAlphaComponent(0.92)
         panel.strokeColor = .clear
         menu.addChild(panel)
@@ -657,7 +768,7 @@ final class GameScene: SKScene {
 
         // Buildings list
         var y = panelSize.height/2 - menuHeaderPad - menuButtonH/2
-        for name in availableBuildings {
+        for name in allowed { // Changed availableBuildings to allowed
             let btn = buttonNode(title: name, actionName: "build:\(name)",
                                  size: CGSize(width: menuButtonW, height: menuButtonH))
             btn.position = CGPoint(x: 0, y: y)
@@ -705,6 +816,7 @@ final class GameScene: SKScene {
                                       || $0.name == "cancel" }) {
             let name = node.name ?? ""
             if name == "cancel" {
+                
                 dismissBuildMenu(); return true
             }
             
@@ -719,7 +831,8 @@ final class GameScene: SKScene {
                                 print("No userId set on GameScene")
                                 return
                             }
-
+                            
+                            
                             do {
                                 // Attempt to spend before building
                                 let newBalance = try await UserManager.shared.spend(userId: uid, amount: cost)
@@ -837,23 +950,39 @@ final class GameScene: SKScene {
         buildMenu?.removeFromParent(); buildMenu = nil
     }
 
+
     // MARK: - Place building (House & Barn now 2×)
     private func placeBuildingOnSelectedPlot(assetName: String) {
         guard let plot = selectedPlot else { return }
-        let pos = plot.position
-
+        
+        //New Code
+        let plotName = (plot.userData?["plotName"] as? String) ?? ""
+        if let rule = plotRules[plotName], !rule.allowed.contains(assetName) {
+            print("🚫 \(assetName) is not allowed on \(plotName)")
+            // Optional: flash the plot or show a quick HUD tooltip
+            return
+        }
+        //New Code
+        
+        //let pos = plot.position
+        let pos = positionFor(assetName: assetName, on: plot)
+        
         // Create the sprite first
         let level = 1
         let fullName = "\(assetName)_L\(level)"   // e.g. "Barn_L1"
 
         let sprite: SKSpriteNode
+
         if UIImage(named: fullName) != nil {
             sprite = SKSpriteNode(imageNamed: fullName)
         } else {
             sprite = SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
             print("⚠️ Asset '\(fullName)' not found. Using placeholder.")
         }
+        
 
+
+        
         // ✅ Now you can safely assign userData
         if sprite.userData == nil { sprite.userData = [:] }
         sprite.userData?["type"] = assetName     // "Barn" or "House"
@@ -861,7 +990,7 @@ final class GameScene: SKScene {
         sprite.userData?["plot"] = (plot.userData?["plotName"] as? String) ?? "UnknownPlot"
 
         sprite.position = pos
-        sprite.zPosition = 1
+        sprite.zPosition = 8
 
         let scale = buildingScaleOverrides[assetName] ?? baseBuildingScale
         sprite.setScale(scale)
@@ -892,7 +1021,16 @@ final class GameScene: SKScene {
         let type = (building.userData?["type"] as? String) ?? "Building"
         let currentLevel = (building.userData?["level"] as? Int) ?? 1
         let nextLevel = currentLevel + 1
-
+        
+        // New Code
+        let plotName = (plot.userData?["plotName"] as? String) ?? ""
+        let maxLevel = plotRules[plotName]?.maxLevel[type] ?? Int.max
+        guard nextLevel <= maxLevel else {
+            print("\(type) cannot be upgraded beyond L\(maxLevel) on \(plotName)")
+            return
+        }
+        // New Code
+        
         // Example: define upgrade cost logic
         let cost = nextLevel * 100  // cost currently set to 100 times the level of the building
         guard let uid = self.userId else {
@@ -906,6 +1044,7 @@ final class GameScene: SKScene {
             print("Spent \(cost). New balance: \(newBalance)")
 
             // 🏗 Proceed with upgrade visuals and data
+            
             let newTextureName = "\(type)_L\(nextLevel)"
             if let newImage = UIImage(named: newTextureName) {
                 building.texture = SKTexture(imageNamed: newTextureName)
@@ -920,6 +1059,7 @@ final class GameScene: SKScene {
         } catch {
             print("Failed to spend \(cost): \(error.localizedDescription)")
         }
+        
     }
 
 
