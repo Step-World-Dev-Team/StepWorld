@@ -28,7 +28,7 @@ final class GameScene: SKScene {
     private let inertiaDampingPer60FPS: CGFloat = 0.92
 
     // Build menu layout
-    private let panelWidth: CGFloat = 260
+    private let panelWidth: CGFloat = 280
     private let menuButtonW: CGFloat = 200
     private let menuButtonH: CGFloat = 44
     private let menuGap: CGFloat = 10
@@ -65,6 +65,7 @@ final class GameScene: SKScene {
     private let panelSprite  = "build_menu_background"
     private let buttonSprite = "clear_button"
     private let buttonSpriteCancel = "cancel_button"
+    private let titleToListGap: CGFloat = 8   // space between the title and the first button
 
     // MARK: - Gestures / inertia
     private var pinchGR: UIPinchGestureRecognizer?
@@ -758,7 +759,7 @@ final class GameScene: SKScene {
         
         //Changed availableBuildings.count to allowed.count
         let buttonsBlockH = CGFloat(allowed.count) * (menuButtonH + menuGap) - menuGap
-        let panelH = menuHeaderPad + buttonsBlockH + menuFooterPad
+        let panelH = menuHeaderPad + titleToListGap + buttonsBlockH + menuFooterPad
         let panelSize = CGSize(width: panelWidth, height: panelH)
 
         // Panel
@@ -778,7 +779,7 @@ final class GameScene: SKScene {
         menu.addChild(title)
 
         // Buildings list
-        var y = panelSize.height/2 - menuHeaderPad - menuButtonH/2
+        var y = panelSize.height/2 - menuHeaderPad - titleToListGap - menuButtonH/2
         for name in allowed { // Changed availableBuildings to allowed
             let btn = buttonNode(title: name, actionName: "build:\(name)",
                                  size: CGSize(width: menuButtonW, height: menuButtonH))
@@ -944,7 +945,7 @@ final class GameScene: SKScene {
         // Layout (reuse your sizing constants)
         let buttons = ["Upgrade", "Sell", "Cancel"]
         let buttonsBlockH = CGFloat(buttons.count) * (menuButtonH + menuGap) - menuGap
-        let panelH = menuHeaderPad + buttonsBlockH + menuFooterPad
+        let panelH = menuHeaderPad + titleToListGap + buttonsBlockH + menuFooterPad/2
         let panelSize = CGSize(width: panelWidth, height: panelH)
 
         // Panel        
@@ -958,13 +959,13 @@ final class GameScene: SKScene {
         // Title
         let title = SKLabelNode(text: "Manage building")
         title.fontName = "PressStart2P-Regular"
-        title.fontSize = 10
+        title.fontSize = 13
         title.fontColor = .label
-        title.position = CGPoint(x: 0, y: panelSize.height/2 - 36)
+        title.position = CGPoint(x: 0, y: panelSize.height/2 - 60)
         menu.addChild(title)
 
         // Buttons
-        var y = panelSize.height/2 - menuHeaderPad - menuButtonH/2
+        var y = panelSize.height/2 - menuHeaderPad - titleToListGap - menuButtonH/2
 
         func addButton(_ label: String, action: String, isCancel: Bool = false) {
             let btn = buttonNode(
