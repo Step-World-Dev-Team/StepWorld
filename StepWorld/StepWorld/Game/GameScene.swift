@@ -38,8 +38,9 @@ final class GameScene: SKScene {
     // Building scale: House & Barn at 2× prior (0.8 vs 0.4)
     private let baseBuildingScale: CGFloat = 0.6
     private let buildingScaleOverrides: [String: CGFloat] = [
-        "House": 0.8,
-        "Barn":  1
+        "House": 1,
+        "Barn":  1,
+        "Farm": 1
     ]
 
     // MARK: - Data
@@ -61,7 +62,7 @@ final class GameScene: SKScene {
 
     // MARK: - Build menu
     private var buildMenu: SKNode?
-    private let availableBuildings = ["Barn", "House"]
+    private let availableBuildings = ["Barn", "House", "Farm"]
 
     // MARK: - Gestures / inertia
     private var pinchGR: UIPinchGestureRecognizer?
@@ -72,6 +73,10 @@ final class GameScene: SKScene {
     // MARK: - Database
     var onMapChanged: (() -> Void)?
     var userId: String!
+    
+    // MARK: - Skins
+    var blueBarnActive = false
+    var candyHouseActive = false
     
     private func triggerMapChanged() {
         onMapChanged?()
@@ -151,17 +156,17 @@ final class GameScene: SKScene {
         // "top left plot" / "plot 1" → use the actual names you see in logs
         "Plot01": PlotRule(
                     allowed: ["House"],
-                    maxLevel: ["House": 3],
+                    maxLevel: ["House": 2],
                     anchor: CGPoint(x: 0.50, y: 0.6),
                     perBuildingAnchor: [:]),
         "Plot02": PlotRule(
-            allowed: ["Barn", "House"],
-            maxLevel: ["Barn": 4, "House": 3],
+            allowed: ["Barn", "House", "Farm"],
+            maxLevel: ["Barn": 4, "House": 2, "Farm": 4],
             anchor: CGPoint(x: 0.5, y: 0.5),
             perBuildingAnchor: ["Barn": CGPoint(x: 0.55, y: 0.55)]),
         "Plot03": PlotRule(
-                    allowed: ["Barn", "House"],
-                    maxLevel: ["Barn": 4, "House": 3],
+                    allowed: ["Barn", "House", "Farm"],
+                    maxLevel: ["Barn": 4, "House": 2, "Farm": 4],
                     anchor: CGPoint(x: 0.5, y: 0.5),
                     perBuildingAnchor: ["Barn": CGPoint(x: 0.50, y: 0.55)])
         // Add more as needed...
@@ -969,8 +974,16 @@ final class GameScene: SKScene {
         
         // Create the sprite first
         let level = 1
-        let fullName = "\(assetName)_L\(level)"   // e.g. "Barn_L1"
-
+        
+        let fullName: String
+        switch assetName {
+        case "Barn" where blueBarnActive:
+            fullName = "BlueBarn_L\(level)"
+        case "House" where candyHouseActive:
+            fullName = "CandyHouse_L\(level)"
+        default:
+            fullName = "\(assetName)_L\(level)"
+        }
         let sprite: SKSpriteNode
 
         if UIImage(named: fullName) != nil {
@@ -1022,14 +1035,12 @@ final class GameScene: SKScene {
         let currentLevel = (building.userData?["level"] as? Int) ?? 1
         let nextLevel = currentLevel + 1
         
-        // New Code
         let plotName = (plot.userData?["plotName"] as? String) ?? ""
         let maxLevel = plotRules[plotName]?.maxLevel[type] ?? Int.max
         guard nextLevel <= maxLevel else {
             print("\(type) cannot be upgraded beyond L\(maxLevel) on \(plotName)")
             return
         }
-        // New Code
         
         // Example: define upgrade cost logic
         let cost = nextLevel * 100  // cost currently set to 100 times the level of the building
@@ -1045,7 +1056,16 @@ final class GameScene: SKScene {
 
             // 🏗 Proceed with upgrade visuals and data
             
-            let newTextureName = "\(type)_L\(nextLevel)"
+            let newTextureName: String
+            switch type {
+            case "Barn" where blueBarnActive:
+                newTextureName = "BlueBarn_L\(nextLevel)"
+            case "House" where candyHouseActive:
+                newTextureName = "CandyHouse_L\(nextLevel)"
+            default:
+                newTextureName = "\(type)_L\(nextLevel)"
+            }
+            
             if let newImage = UIImage(named: newTextureName) {
                 building.texture = SKTexture(imageNamed: newTextureName)
                 building.size = building.texture!.size()
@@ -1111,7 +1131,9 @@ final class GameScene: SKScene {
                 "type": type,
                 "plot": plot,
                 "x": node.position.x,
-                "y": node.position.y
+                "y": node.position.y,
+                "level": (node.userData?["level"] as? Int) ?? 1,
+                "skin":  (node.userData?["skin"]  as? String) ?? "Default"
             ]
         }
     }
