@@ -75,7 +75,10 @@ final class GameScene: SKScene {
     
     //decorations
     private var decorManager: DecorManager!
-    private var decorButtonLabel: SKLabelNode?
+    
+    //Allows decor to hover on map while finding place to place it
+    @available(iOS 13.4, *)
+    private var hoverGR: UIHoverGestureRecognizer?
 
     
     // MARK: - Database
@@ -85,6 +88,15 @@ final class GameScene: SKScene {
     private func triggerMapChanged() {
         onMapChanged?()
     }
+    //requires two fingers to drag map so decorations can be moved
+    private func updatePanBehaviorForPlacement() {
+        if decorManager?.isPlacing == true {
+            panGR?.minimumNumberOfTouches = 2   // two-finger pan while placing
+        } else {
+            panGR?.minimumNumberOfTouches = 1   // normal map pan
+        }
+    }
+
 
     // MARK: - Scene lifecycle
     override func didMove(to view: SKView) {
@@ -105,12 +117,6 @@ final class GameScene: SKScene {
             scene: self,
             cameraNode: cameraNode,
             plotsProvider: { [weak self] in self?.plotNodes ?? [] })
-
-        // update HUD when menu state changes
-        decorManager.onMenuStateChanged = { [weak self] open in
-            self?.setDecorButton(open: open)   // optional, for visual feedback
-        }
-
 
         // Camera
         camera = cameraNode
@@ -137,6 +143,14 @@ final class GameScene: SKScene {
         view.addGestureRecognizer(pan); panGR = pan
 
         print("✅ GameScene ready. plots=\(plotNodes.count) zoom=\(cameraNode.xScale)")
+        
+        //for decor hover
+        if #available(iOS 13.4, *) {
+            let hover = UIHoverGestureRecognizer(target: self, action: #selector(hoverMoved(_:)))
+            hover.cancelsTouchesInView = false
+            view.addGestureRecognizer(hover)
+            self.hoverGR = hover
+        }
     }
 
     deinit {
@@ -526,47 +540,7 @@ final class GameScene: SKScene {
         hudLabel = label
         hudLabel?.isHidden = true
         
-        // 🆕 Decorate button with colored background
-            let buttonSize = CGSize(width: 150, height: 50)
-
-            let decorButton = SKNode()
-            decorButton.name = "decorButton"
-
-            // Background (rounded rectangle)
-            let bg = SKShapeNode(rectOf: buttonSize, cornerRadius: 12)
-            bg.fillColor = UIColor.systemOrange.withAlphaComponent(0.9)   // 🟧 bright pumpkin orange
-            bg.strokeColor = UIColor.white
-            bg.lineWidth = 2
-            bg.name = "decorButton"
-            decorButton.addChild(bg)
-
-            // Label on the button
-            let buttonLabel = SKLabelNode(text: "🎃 Decorate")
-            buttonLabel.fontName = ".SFUI-Bold"
-            buttonLabel.fontSize = 18
-            buttonLabel.fontColor = .white
-            buttonLabel.verticalAlignmentMode = .center
-            buttonLabel.horizontalAlignmentMode = .center
-            buttonLabel.name = "decorButton"
-            decorButton.addChild(buttonLabel)
-
-            // Position on HUD (bottom-left or wherever you like)
-            decorButton.position = CGPoint(x: -size.width/2 + 120, y: -size.height/2 + 130)
-            hudRoot.addChild(decorButton)
-
-            // Keep a reference if you want to update text/color later
-            decorButtonLabel = buttonLabel
-
-            // Optional: gentle bob animation to make it stand out
-            let up = SKAction.moveBy(x: 0, y: 4, duration: 1.0)
-            up.timingMode = .easeInEaseOut
-            decorButton.run(.repeatForever(.sequence([up, up.reversed()])))
         }
-
-    private func setDecorButton(open: Bool) {
-        decorButtonLabel?.text = open ? "Close" : "🎃 Decorate"
-        decorButtonLabel?.fontColor = open ? .systemGreen : .white
-    }
 
 
     private func rescalePlotNameLabelsForCamera() {
@@ -661,7 +635,19 @@ final class GameScene: SKScene {
             panVelocity = .zero
         }
     }
-
+    //makes ghost follow cursor
+    @available(iOS 13.4, *)
+    @objc private func hoverMoved(_ sender: UIHoverGestureRecognizer) {
+        guard decorManager?.isPlacing == true, let view = self.view else { return }
+        let pView  = sender.location(in: view)
+        let pScene = convertPoint(fromView: pView)
+        switch sender.state {
+        case .began, .changed, .ended:
+            decorManager?.movePreview(to: pScene)
+        default:
+            break
+        }
+    }
 
     // MARK: - Camera helpers
     private func centerCamera() { cameraNode.position = .zero }
@@ -753,6 +739,21 @@ final class GameScene: SKScene {
             }
         }
     }
+    public func attemptPurchaseAndStartPlacement(type: String, price: Int, userId: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let newBal = try await UserManager.shared.spend(userId: userId, amount: price)
+                print("🛒 Bought \(type) for \(price). New balance: \(newBal)")
+                self.decorManager.startPlacement(type: type)    // ghost shows; user clicks to place
+                self.updatePanBehaviorForPlacement()
+            } catch {
+                print("❌ Purchase failed: \(error.localizedDescription)")
+                // Optionally: show a HUD toast in the scene
+            }
+        }
+    }
+
 
     // MARK: - Touch input
 
@@ -777,23 +778,18 @@ final class GameScene: SKScene {
         let loc = t.location(in: self)
         let tapped = nodes(at: loc)
 
-        // A) If currently placing décor: single tap = try to place here
+        //If currently placing décor: single tap = try to place here
         if decorManager?.isPlacing == true {
-            if decorManager?.confirmPlacement(at: loc) == true { return }
+            if decorManager?.confirmPlacement(at: loc) == true {
+                updatePanBehaviorForPlacement()
+                return
+            }
             // If invalid (inside a plot), confirmPlacement returns false; let the user try again.
             return
+            
         }
 
-        // B) HUD button first (toggle the Decorate menu)
-        if tapped.contains(where: { $0.name == "decorButton" }) {
-            decorManager.toggleMenu()
-            return
-        }
-
-        // C) Décor menu interactions (if the menu is open)
-        if decorManager?.handleMenuTap(tapped) == true { return }
-
-        // D) Your existing build/manage menu logic
+        //existing build/manage menu logic
         if handleManageMenuTap(tapped) { return }
         if handleBuildMenuTap(tapped) { return }
 
@@ -802,7 +798,10 @@ final class GameScene: SKScene {
             for p in plotNodes { setPlotSelected(p, selected: false) }
             setPlotSelected(plot, selected: true)
             selectedPlot = plot
-            if isPlotOccupied(plot) { showManageMenu(for: plot) } else { showBuildMenu() }
+            if isPlotOccupied(plot) {
+                showManageMenu(for: plot)
+            } else {
+                showBuildMenu() }
             return
         }
 
@@ -1050,7 +1049,7 @@ final class GameScene: SKScene {
         return false
     }
     
-    private func showManageMenu(for plot: SKSpriteNode) {
+    private func showManageMenu(for plot: SKShapeNode) {
         dismissBuildMenu() // reuse the same container slot
         let menu = SKNode(); menu.zPosition = 10_001
         cameraNode.addChild(menu); buildMenu = menu
