@@ -350,6 +350,7 @@ final class GameScene: SKScene {
     }
     // MARK: - Plot styling
     private func stylePlot(_ plot: SKShapeNode, size: CGSize) {
+        
         plot.fillColor = UIColor.white.withAlphaComponent(0.001) // invisible but hittable
         plot.strokeColor = .clear
         plot.lineWidth = 0
@@ -746,6 +747,7 @@ final class GameScene: SKScene {
                 let newBal = try await UserManager.shared.spend(userId: userId, amount: price)
                 print("🛒 Bought \(type) for \(price). New balance: \(newBal)")
                 self.decorManager.startPlacement(type: type)    // ghost shows; user clicks to place
+                self.decorManager.movePreview(to: self.cameraNode.position)
                 self.updatePanBehaviorForPlacement()
             } catch {
                 print("❌ Purchase failed: \(error.localizedDescription)")
@@ -777,23 +779,46 @@ final class GameScene: SKScene {
         guard let t = touches.first else { return }
         let loc = t.location(in: self)
         let tapped = nodes(at: loc)
+        let top = atPoint(loc)
+        
+        
 
         //If currently placing décor: single tap = try to place here
         if decorManager?.isPlacing == true {
             if decorManager?.confirmPlacement(at: loc) == true {
                 updatePanBehaviorForPlacement()
+            }
+                return
+        }
+            if let menu = buildMenu, top.inParentHierarchy(menu) {
+                    if handleManageMenuTap(tapped) || handleBuildMenuTap(tapped) { return }
+                    return // swallow taps on menu background — don’t open build menu
+                }
+        // 🚫 Ignore taps on the "For Sale" sign (and anything inside it)
+        var s: SKNode? = top
+        while let cur = s, cur.name != "forSaleSign" { s = cur.parent }
+        if s?.name == "forSaleSign" { return }
+        
+        // Only react if the TOPMOST hit is a plot (or inside one)
+            var n: SKNode? = top
+            while let cur = n, cur.name != "plot" { n = cur.parent }
+            if let plot = n as? SKShapeNode {
+                for p in plotNodes { setPlotSelected(p, selected: false) }
+                setPlotSelected(plot, selected: true)
+                selectedPlot = plot
+                if isPlotOccupied(plot) {
+                    showManageMenu(for: plot)
+                } else {
+                    showBuildMenu()
+                }
                 return
             }
-            // If invalid (inside a plot), confirmPlacement returns false; let the user try again.
-            return
-            
+
+            // Fallback — tapped empty space
+            dismissBuildMenu()
         }
 
-        //existing build/manage menu logic
-        if handleManageMenuTap(tapped) { return }
-        if handleBuildMenuTap(tapped) { return }
-
-        // E) Plot selection → Build/Manage
+       /* // E) Plot selection → Build/Manage
         if let plot = tapped.first(where: { $0.name == "plot" }) as? SKShapeNode {
             for p in plotNodes { setPlotSelected(p, selected: false) }
             setPlotSelected(plot, selected: true)
@@ -807,7 +832,7 @@ final class GameScene: SKScene {
 
         // F) Fallback
         dismissBuildMenu()
-    }
+    } */
 
 
     /*// MARK: - Touch → plot select → build menu
