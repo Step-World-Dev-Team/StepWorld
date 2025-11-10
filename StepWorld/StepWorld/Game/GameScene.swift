@@ -69,6 +69,11 @@ final class GameScene: SKScene {
     private var panVelocity = CGPoint.zero
     private var lastUpdateTime: TimeInterval = 0
     
+    //decorations
+    private var decorManager: DecorManager!
+    private var decorButtonLabel: SKLabelNode?
+
+    
     // MARK: - Database
     var onMapChanged: (() -> Void)?
     var userId: String!
@@ -91,6 +96,17 @@ final class GameScene: SKScene {
         // Build plots from TMX; fallback if none so you always see something
         let hadPlots = buildPlotsFromTMX()
         if !hadPlots { buildDebugPlots() }
+        
+        decorManager = DecorManager(
+            scene: self,
+            cameraNode: cameraNode,
+            plotsProvider: { [weak self] in self?.plotNodes ?? [] })
+
+        // update HUD when menu state changes
+        decorManager.onMenuStateChanged = { [weak self] open in
+            self?.setDecorButton(open: open)   // optional, for visual feedback
+        }
+
 
         // Camera
         camera = cameraNode
@@ -499,14 +515,55 @@ final class GameScene: SKScene {
         label.fontSize = 14
         label.fontColor = .white
         label.text = plotNodes.isEmpty
-            ? "⚠️ 0 plots found — check TMX layer '\(plotLayerName)'"
-            : "Plots: \(plotNodes.count)"
+        ? "⚠️ 0 plots found — check TMX layer '\(plotLayerName)'"
+        : "Plots: \(plotNodes.count)"
         label.position = CGPoint(x: size.width/2 - 10, y: size.height/2 - 10)
         hudRoot.addChild(label)
         hudLabel = label
         hudLabel?.isHidden = true
+        
+        // 🆕 Decorate button with colored background
+            let buttonSize = CGSize(width: 150, height: 50)
 
+            let decorButton = SKNode()
+            decorButton.name = "decorButton"
+
+            // Background (rounded rectangle)
+            let bg = SKShapeNode(rectOf: buttonSize, cornerRadius: 12)
+            bg.fillColor = UIColor.systemOrange.withAlphaComponent(0.9)   // 🟧 bright pumpkin orange
+            bg.strokeColor = UIColor.white
+            bg.lineWidth = 2
+            bg.name = "decorButton"
+            decorButton.addChild(bg)
+
+            // Label on the button
+            let buttonLabel = SKLabelNode(text: "🎃 Decorate")
+            buttonLabel.fontName = ".SFUI-Bold"
+            buttonLabel.fontSize = 18
+            buttonLabel.fontColor = .white
+            buttonLabel.verticalAlignmentMode = .center
+            buttonLabel.horizontalAlignmentMode = .center
+            buttonLabel.name = "decorButton"
+            decorButton.addChild(buttonLabel)
+
+            // Position on HUD (bottom-left or wherever you like)
+            decorButton.position = CGPoint(x: -size.width/2 + 120, y: -size.height/2 + 130)
+            hudRoot.addChild(decorButton)
+
+            // Keep a reference if you want to update text/color later
+            decorButtonLabel = buttonLabel
+
+            // Optional: gentle bob animation to make it stand out
+            let up = SKAction.moveBy(x: 0, y: 4, duration: 1.0)
+            up.timingMode = .easeInEaseOut
+            decorButton.run(.repeatForever(.sequence([up, up.reversed()])))
+        }
+
+    private func setDecorButton(open: Bool) {
+        decorButtonLabel?.text = open ? "Close" : "🎃 Decorate"
+        decorButtonLabel?.fontColor = open ? .systemGreen : .white
     }
+
 
     private func rescalePlotNameLabelsForCamera() {
         let inv = 1.0 / cameraNode.xScale
@@ -693,8 +750,64 @@ final class GameScene: SKScene {
         }
     }
 
+    // MARK: - Touch input
 
-    // MARK: - Touch → plot select → build menu
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // If we're placing decor, a simple click should move the ghost to the cursor immediately.
+        if let t = touches.first, decorManager?.isPlacing == true {
+            decorManager?.movePreview(to: t.location(in: self))
+        }
+        super.touchesBegan(touches, with: event)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Optional: keep this if you still want drag-to-aim during placement.
+        if let t = touches.first, decorManager?.isPlacing == true {
+            decorManager?.movePreview(to: t.location(in: self))
+        }
+        super.touchesMoved(touches, with: event)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let t = touches.first else { return }
+        let loc = t.location(in: self)
+        let tapped = nodes(at: loc)
+
+        // A) If currently placing décor: single tap = try to place here
+        if decorManager?.isPlacing == true {
+            if decorManager?.confirmPlacement(at: loc) == true { return }
+            // If invalid (inside a plot), confirmPlacement returns false; let the user try again.
+            return
+        }
+
+        // B) HUD button first (toggle the Decorate menu)
+        if tapped.contains(where: { $0.name == "decorButton" }) {
+            decorManager.toggleMenu()
+            return
+        }
+
+        // C) Décor menu interactions (if the menu is open)
+        if decorManager?.handleMenuTap(tapped) == true { return }
+
+        // D) Your existing build/manage menu logic
+        if handleManageMenuTap(tapped) { return }
+        if handleBuildMenuTap(tapped) { return }
+
+        // E) Plot selection → Build/Manage
+        if let plot = tapped.first(where: { $0.name == "plot" }) as? SKShapeNode {
+            for p in plotNodes { setPlotSelected(p, selected: false) }
+            setPlotSelected(plot, selected: true)
+            selectedPlot = plot
+            if isPlotOccupied(plot) { showManageMenu(for: plot) } else { showBuildMenu() }
+            return
+        }
+
+        // F) Fallback
+        dismissBuildMenu()
+    }
+
+
+    /*// MARK: - Touch → plot select → build menu
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let t = touches.first else { return }
         let loc = t.location(in: self)
@@ -720,7 +833,7 @@ final class GameScene: SKScene {
 
         dismissBuildMenu()
     }
-
+*/
 
     // MARK: - Build menu (fixed layout: no overlap)
     private func showBuildMenu() {
