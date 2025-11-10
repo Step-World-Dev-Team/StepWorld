@@ -99,7 +99,7 @@ final class GameScene: SKScene {
     }
     
     private func playLoopingSFX(_ name: String,
-                                loops: Int = 3,
+                                loops: Int = 1,
                                 volume: CGFloat = 1.0,
                                 clipDuration: TimeInterval = 1.0) {
         // assumes your sound files are .mp3 (you can change this to "wav" if needed)
@@ -906,9 +906,7 @@ final class GameScene: SKScene {
 
     private func handleBuildMenuTap(_ tapped: [SKNode]) -> Bool {
         guard buildMenu != nil else { return false }
-        // when a building is placed
-        playLoopingSFX("wood_sawing", loops: 3, volume: 0.9, clipDuration: 0.6)
-
+        
         if let node = tapped.first(where: { ($0.name ?? "").hasPrefix("build:")
                                       || $0.name == "cancel" }) {
             let name = node.name ?? ""
@@ -938,6 +936,9 @@ final class GameScene: SKScene {
                                 // Only place the building if payment succeeded
                                 self.placeBuildingOnSelectedPlot(assetName: asset)
                                 self.triggerMapChanged()
+                                
+                                //Play sound
+                                playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
 
                             } catch {
                                 print("Could not build \(asset): \(error.localizedDescription)")
@@ -974,8 +975,6 @@ final class GameScene: SKScene {
                         await self.upgrade(building: bld, on: plot)
                     }
                 
-                playLoopingSFX("wood_sawing", loops: 3, volume: 0.9, clipDuration: 0.6)
-
                     dismissBuildMenu()
                     return true
                 /* Old Logic (kept just in case)
@@ -1157,6 +1156,10 @@ final class GameScene: SKScene {
                 building.userData?["level"] = nextLevel
                 print("\(type) upgraded to level \(nextLevel)")
                 triggerMapChanged()
+                
+                //Play sound
+                playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
+
             } else {
                 print("No image named \(newTextureName).png found")
             }
