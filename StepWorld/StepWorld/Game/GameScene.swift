@@ -28,12 +28,12 @@ final class GameScene: SKScene {
     private let inertiaDampingPer60FPS: CGFloat = 0.92
 
     // Build menu layout
-    private let panelWidth: CGFloat = 260
-    private let menuButtonW: CGFloat = 220
+    private let panelWidth: CGFloat = 280
+    private let menuButtonW: CGFloat = 200
     private let menuButtonH: CGFloat = 44
     private let menuGap: CGFloat = 10
     private let menuHeaderPad: CGFloat = 64
-    private let menuFooterPad: CGFloat = 64
+    private let menuFooterPad: CGFloat = 128
 
     // Building scale: House & Barn at 2× prior (0.8 vs 0.4)
     private let baseBuildingScale: CGFloat = 0.6
@@ -63,6 +63,10 @@ final class GameScene: SKScene {
     // MARK: - Build menu
     private var buildMenu: SKNode?
     private let availableBuildings = ["Barn", "House", "Farm"]
+    private let panelSprite  = "build_menu_background"
+    private let buttonSprite = "clear_button"
+    private let buttonSpriteCancel = "cancel_button"
+    private let titleToListGap: CGFloat = 8   // space between the title and the first button
 
     // MARK: - Gestures / inertia
     private var pinchGR: UIPinchGestureRecognizer?
@@ -251,7 +255,7 @@ final class GameScene: SKScene {
             // Plot name label (kept constant-size on screen)
             if !p.name.isEmpty {
                 let nameLabel = SKLabelNode(text: p.name)
-                nameLabel.fontName = ".SFUI-Semibold"
+                nameLabel.fontName = "PressStart2P-Regular"
                 nameLabel.fontSize = 14
                 nameLabel.fontColor = .white
                 nameLabel.verticalAlignmentMode = .top
@@ -306,7 +310,7 @@ final class GameScene: SKScene {
 
 
             let label = SKLabelNode(text: names[i])
-            label.fontName = ".SFUI-Semibold"
+            label.fontName = "PressStart2P-Regular"
             label.fontSize = 14
             label.fontColor = .white
             label.verticalAlignmentMode = .top
@@ -498,7 +502,7 @@ final class GameScene: SKScene {
     private func setupHUD() {
         hudRoot.zPosition = 10_000
         cameraNode.addChild(hudRoot)
-        let label = SKLabelNode(fontNamed: ".SFUI-Semibold")
+        let label = SKLabelNode(fontNamed: "PressStart2P-Regular")
         label.horizontalAlignmentMode = .right
         label.verticalAlignmentMode = .top
         label.fontSize = 14
@@ -716,7 +720,9 @@ final class GameScene: SKScene {
             selectedPlot = plot
 
             if isPlotOccupied(plot) {
-                showManageMenu(for: plot)
+                if let bld = building(on: plot) {
+                    showManageMenu(for: bld)
+                }
             } else {
                 showBuildMenu()
             }
@@ -728,6 +734,12 @@ final class GameScene: SKScene {
 
 
     // MARK: - Build menu (fixed layout: no overlap)
+    
+    private func nineSlice(_ node: SKSpriteNode,
+                           centerRect: CGRect = CGRect(x: 0.4, y: 0.4, width: 0.2, height: 0.2)) {
+        node.centerRect = centerRect
+    }
+    
     private func showBuildMenu() {
         
         //New code
@@ -752,27 +764,27 @@ final class GameScene: SKScene {
         
         //Changed availableBuildings.count to allowed.count
         let buttonsBlockH = CGFloat(allowed.count) * (menuButtonH + menuGap) - menuGap
-        let panelH = menuHeaderPad + buttonsBlockH + menuFooterPad
+        let panelH = menuHeaderPad + titleToListGap + buttonsBlockH + menuFooterPad
         let panelSize = CGSize(width: panelWidth, height: panelH)
 
         // Panel
-        let panel = SKShapeNode(rectOf: panelSize, cornerRadius: 14)
-        
-        
-        panel.fillColor = UIColor.systemBackground.withAlphaComponent(0.92)
-        panel.strokeColor = .clear
+        let panel = SKSpriteNode(imageNamed: panelSprite)
+        nineSlice(panel)                       // 9-slice so edges stay crisp
+        panel.size = panelSize
+        panel.zPosition = 0
+        panel.colorBlendFactor = 0             // keep original colors
         menu.addChild(panel)
 
         // Title
         let title = SKLabelNode(text: "Choose a building")
-        title.fontName = ".SFUI-Bold"
-        title.fontSize = 18
+        title.fontName = "PressStart2P-Regular"
+        title.fontSize = 13
         title.fontColor = .label
-        title.position = CGPoint(x: 0, y: panelSize.height/2 - 36)
+        title.position = CGPoint(x: 0, y: panelSize.height/2 - 60)
         menu.addChild(title)
 
         // Buildings list
-        var y = panelSize.height/2 - menuHeaderPad - menuButtonH/2
+        var y = panelSize.height/2 - menuHeaderPad - titleToListGap - menuButtonH/2
         for name in allowed { // Changed availableBuildings to allowed
             let btn = buttonNode(title: name, actionName: "build:\(name)",
                                  size: CGSize(width: menuButtonW, height: menuButtonH))
@@ -785,32 +797,58 @@ final class GameScene: SKScene {
         let cancel = buttonNode(title: "Cancel", actionName: "cancel",
                                 size: CGSize(width: menuButtonW, height: menuButtonH),
                                 isCancel: true)
-        cancel.position = CGPoint(x: 0, y: -panelSize.height/2 + menuFooterPad/2)
+        cancel.position = CGPoint(x: 0, y: -panelSize.height/2 + menuFooterPad/1.35)
         menu.addChild(cancel)
     }
 
     private func buttonNode(title: String,
                             actionName: String,
                             size: CGSize,
-                            isCancel: Bool = false) -> SKNode {
-        let node = SKNode(); node.name = actionName
+                            isCancel: Bool = false,
+                            control
+                            useNineSlice: Bool = true) -> SKNode {
+        let node = SKNode()
+            node.name = actionName
+            node.zPosition = 1
 
-        let bg = SKShapeNode(rectOf: size, cornerRadius: 10)
-        bg.fillColor = isCancel
-            ? UIColor.systemGray5.withAlphaComponent(0.85)
-            : UIColor.systemGreen.withAlphaComponent(0.35)
-        bg.strokeColor = isCancel ? UIColor.systemGray3 : .systemGreen
-        bg.lineWidth = 1.5
-        bg.name = actionName
-        node.addChild(bg)
+            // Choose the sprite name
+            let bgName = isCancel ? buttonSpriteCancel : buttonSprite
 
-        let label = SKLabelNode(text: title)
-        label.fontName = ".SFUI-Semibold"
-        label.fontSize = 16
-        label.fontColor = isCancel ? .label : .white
-        label.verticalAlignmentMode = .center
-        label.name = actionName
-        node.addChild(label)
+            // Load texture and validate
+            let tex = SKTexture(imageNamed: bgName)
+            let texSize = tex.size()
+            let bg: SKSpriteNode
+
+            if texSize == .zero {
+                // 🚨 Missing asset -> show visible fallback and log
+                print("⚠️ Missing button sprite '\(bgName)'. Check asset name & target membership.")
+                bg = SKSpriteNode(color: .red, size: size)
+            } else {
+                bg = SKSpriteNode(texture: tex)
+                if useNineSlice {
+                    // Adjust these insets to match YOUR art’s safe middle area
+                    bg.centerRect = CGRect(x: 0.4, y: 0.4, width: 0.2, height: 0.2)
+                    bg.size = size // now it can stretch without distorting corners
+                } else {
+                    // Use natural image size (no stretching)
+                    bg.size = texSize
+                }
+            }
+
+            bg.name = actionName
+            bg.colorBlendFactor = 0
+            node.addChild(bg)
+
+            // Label
+            let label = SKLabelNode(text: title)
+            label.fontName = "PressStart2P-Regular"   // ensure font is in Info.plist (UIAppFonts)
+            label.fontSize = 14
+            label.fontColor = .black
+            label.verticalAlignmentMode = .center
+            label.horizontalAlignmentMode = .center
+            label.name = actionName
+            label.zPosition = 2
+            node.addChild(label)
 
         return node
     }
@@ -904,7 +942,7 @@ final class GameScene: SKScene {
         return false
     }
     
-    private func showManageMenu(for plot: SKShapeNode) {
+    private func showManageMenu(for plot: SKSpriteNode) {
         dismissBuildMenu() // reuse the same container slot
         let menu = SKNode(); menu.zPosition = 10_001
         cameraNode.addChild(menu); buildMenu = menu
@@ -912,25 +950,27 @@ final class GameScene: SKScene {
         // Layout (reuse your sizing constants)
         let buttons = ["Upgrade", "Sell", "Cancel"]
         let buttonsBlockH = CGFloat(buttons.count) * (menuButtonH + menuGap) - menuGap
-        let panelH = menuHeaderPad + buttonsBlockH + menuFooterPad
+        let panelH = menuHeaderPad + titleToListGap + buttonsBlockH + menuFooterPad/2
         let panelSize = CGSize(width: panelWidth, height: panelH)
 
-        // Panel
-        let panel = SKShapeNode(rectOf: panelSize, cornerRadius: 14)
-        panel.fillColor = UIColor.systemBackground.withAlphaComponent(0.92)
-        panel.strokeColor = .clear
+        // Panel        
+        let panel = SKSpriteNode(imageNamed: panelSprite)
+        nineSlice(panel)                       // 9-slice so edges stay crisp
+        panel.size = panelSize
+        panel.zPosition = 0
+        panel.colorBlendFactor = 0             // keep original colors
         menu.addChild(panel)
 
         // Title
         let title = SKLabelNode(text: "Manage building")
-        title.fontName = ".SFUI-Bold"
-        title.fontSize = 18
+        title.fontName = "PressStart2P-Regular"
+        title.fontSize = 13
         title.fontColor = .label
-        title.position = CGPoint(x: 0, y: panelSize.height/2 - 36)
+        title.position = CGPoint(x: 0, y: panelSize.height/2 - 60)
         menu.addChild(title)
 
         // Buttons
-        var y = panelSize.height/2 - menuHeaderPad - menuButtonH/2
+        var y = panelSize.height/2 - menuHeaderPad - titleToListGap - menuButtonH/2
 
         func addButton(_ label: String, action: String, isCancel: Bool = false) {
             let btn = buttonNode(
@@ -1175,6 +1215,8 @@ final class GameScene: SKScene {
             return 200
         case "Barn":
             return 300
+        case "Farm":
+            return 200
         default:
             return 100
         }
