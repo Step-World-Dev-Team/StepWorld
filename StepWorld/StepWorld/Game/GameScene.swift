@@ -85,7 +85,6 @@ final class GameScene: SKScene {
     }
 
     // MARK: - Sound
-    
     private var bgm: SKAudioNode?
 
     private func configureAudioSession() {
@@ -153,9 +152,6 @@ final class GameScene: SKScene {
         bgm = music
         print("🎵 Music node added to scene: \(music)")
         
-        // Build plots from TMX; fallback if none so you always see something
-        let hadPlots = buildPlotsFromTMX()
-        if !hadPlots { buildDebugPlots() }
 
         // Camera
         if camera == nil { camera = cameraNode }
