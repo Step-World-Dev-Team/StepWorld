@@ -74,6 +74,14 @@ final class GameScene: SKScene {
     private var panVelocity = CGPoint.zero
     private var lastUpdateTime: TimeInterval = 0
     
+    //decorations
+    private var decorManager: DecorManager!
+    
+    //Allows decor to hover on map while finding place to place it
+    @available(iOS 13.4, *)
+    private var hoverGR: UIHoverGestureRecognizer?
+
+    
     // MARK: - Database
     var onMapChanged: (() -> Void)?
     var userId: String!
@@ -85,6 +93,15 @@ final class GameScene: SKScene {
     private func triggerMapChanged() {
         onMapChanged?()
     }
+    //requires two fingers to drag map so decorations can be moved
+    private func updatePanBehaviorForPlacement() {
+        if decorManager?.isPlacing == true {
+            panGR?.minimumNumberOfTouches = 2   // two-finger pan while placing
+        } else {
+            panGR?.minimumNumberOfTouches = 1   // normal map pan
+        }
+    }
+
 
     // MARK: - Scene lifecycle
     override func didMove(to view: SKView) {
@@ -100,6 +117,11 @@ final class GameScene: SKScene {
         // Build plots from TMX; fallback if none so you always see something
         let hadPlots = buildPlotsFromTMX()
         if !hadPlots { buildDebugPlots() }
+        
+        decorManager = DecorManager(
+            scene: self,
+            cameraNode: cameraNode,
+            plotsProvider: { [weak self] in self?.plotNodes ?? [] })
 
         // Camera
         camera = cameraNode
@@ -126,6 +148,14 @@ final class GameScene: SKScene {
         view.addGestureRecognizer(pan); panGR = pan
 
         print("✅ GameScene ready. plots=\(plotNodes.count) zoom=\(cameraNode.xScale)")
+        
+        //for decor hover
+        if #available(iOS 13.4, *) {
+            let hover = UIHoverGestureRecognizer(target: self, action: #selector(hoverMoved(_:)))
+            hover.cancelsTouchesInView = false
+            view.addGestureRecognizer(hover)
+            self.hoverGR = hover
+        }
     }
 
     deinit {
@@ -325,6 +355,7 @@ final class GameScene: SKScene {
     }
     // MARK: - Plot styling
     private func stylePlot(_ plot: SKShapeNode, size: CGSize) {
+        
         plot.fillColor = UIColor.white.withAlphaComponent(0.001) // invisible but hittable
         plot.strokeColor = .clear
         plot.lineWidth = 0
@@ -508,14 +539,15 @@ final class GameScene: SKScene {
         label.fontSize = 14
         label.fontColor = .white
         label.text = plotNodes.isEmpty
-            ? "⚠️ 0 plots found — check TMX layer '\(plotLayerName)'"
-            : "Plots: \(plotNodes.count)"
+        ? "⚠️ 0 plots found — check TMX layer '\(plotLayerName)'"
+        : "Plots: \(plotNodes.count)"
         label.position = CGPoint(x: size.width/2 - 10, y: size.height/2 - 10)
         hudRoot.addChild(label)
         hudLabel = label
         hudLabel?.isHidden = true
+        
+        }
 
-    }
 
     private func rescalePlotNameLabelsForCamera() {
         let inv = 1.0 / cameraNode.xScale
@@ -609,7 +641,19 @@ final class GameScene: SKScene {
             panVelocity = .zero
         }
     }
-
+    //makes ghost follow cursor
+    @available(iOS 13.4, *)
+    @objc private func hoverMoved(_ sender: UIHoverGestureRecognizer) {
+        guard decorManager?.isPlacing == true, let view = self.view else { return }
+        let pView  = sender.location(in: view)
+        let pScene = convertPoint(fromView: pView)
+        switch sender.state {
+        case .began, .changed, .ended:
+            decorManager?.movePreview(to: pScene)
+        default:
+            break
+        }
+    }
 
     // MARK: - Camera helpers
     private func centerCamera() { cameraNode.position = .zero }
@@ -701,9 +745,102 @@ final class GameScene: SKScene {
             }
         }
     }
+    public func attemptPurchaseAndStartPlacement(type: String, price: Int, userId: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let newBal = try await UserManager.shared.spend(userId: userId, amount: price)
+                print("🛒 Bought \(type) for \(price). New balance: \(newBal)")
+                self.decorManager.startPlacement(type: type)    // ghost shows; user clicks to place
+                self.decorManager.movePreview(to: self.cameraNode.position)
+                self.updatePanBehaviorForPlacement()
+            } catch {
+                print("❌ Purchase failed: \(error.localizedDescription)")
+                // Optionally: show a HUD toast in the scene
+            }
+        }
+    }
 
 
-    // MARK: - Touch → plot select → build menu
+    // MARK: - Touch input
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // If we're placing decor, a simple click should move the ghost to the cursor immediately.
+        if let t = touches.first, decorManager?.isPlacing == true {
+            decorManager?.movePreview(to: t.location(in: self))
+        }
+        super.touchesBegan(touches, with: event)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Optional: keep this if you still want drag-to-aim during placement.
+        if let t = touches.first, decorManager?.isPlacing == true {
+            decorManager?.movePreview(to: t.location(in: self))
+        }
+        super.touchesMoved(touches, with: event)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let t = touches.first else { return }
+        let loc = t.location(in: self)
+        let tapped = nodes(at: loc)
+        let top = atPoint(loc)
+        
+        
+
+        //If currently placing décor: single tap = try to place here
+        if decorManager?.isPlacing == true {
+            if decorManager?.confirmPlacement(at: loc) == true {
+                updatePanBehaviorForPlacement()
+            }
+                return
+        }
+            if let menu = buildMenu, top.inParentHierarchy(menu) {
+                    if handleManageMenuTap(tapped) || handleBuildMenuTap(tapped) { return }
+                    return // swallow taps on menu background — don’t open build menu
+                }
+        // 🚫 Ignore taps on the "For Sale" sign (and anything inside it)
+        var s: SKNode? = top
+        while let cur = s, cur.name != "forSaleSign" { s = cur.parent }
+        if s?.name == "forSaleSign" { return }
+        
+        // Only react if the TOPMOST hit is a plot (or inside one)
+            var n: SKNode? = top
+            while let cur = n, cur.name != "plot" { n = cur.parent }
+            if let plot = n as? SKShapeNode {
+                for p in plotNodes { setPlotSelected(p, selected: false) }
+                setPlotSelected(plot, selected: true)
+                selectedPlot = plot
+                if isPlotOccupied(plot) {
+                    showManageMenu(for: plot)
+                } else {
+                    showBuildMenu()
+                }
+                return
+            }
+
+            // Fallback — tapped empty space
+            dismissBuildMenu()
+        }
+
+       /* // E) Plot selection → Build/Manage
+        if let plot = tapped.first(where: { $0.name == "plot" }) as? SKShapeNode {
+            for p in plotNodes { setPlotSelected(p, selected: false) }
+            setPlotSelected(plot, selected: true)
+            selectedPlot = plot
+            if isPlotOccupied(plot) {
+                showManageMenu(for: plot)
+            } else {
+                showBuildMenu() }
+            return
+        }
+
+        // F) Fallback
+        dismissBuildMenu()
+    } */
+
+
+    /*// MARK: - Touch → plot select → build menu
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let t = touches.first else { return }
         let loc = t.location(in: self)
@@ -731,7 +868,7 @@ final class GameScene: SKScene {
 
         dismissBuildMenu()
     }
-
+*/
 
     // MARK: - Build menu (fixed layout: no overlap)
     
@@ -942,7 +1079,7 @@ final class GameScene: SKScene {
         return false
     }
     
-    private func showManageMenu(for plot: SKSpriteNode) {
+    private func showManageMenu(for plot: SKShapeNode) {
         dismissBuildMenu() // reuse the same container slot
         let menu = SKNode(); menu.zPosition = 10_001
         cameraNode.addChild(menu); buildMenu = menu

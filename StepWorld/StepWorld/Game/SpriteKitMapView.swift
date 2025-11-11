@@ -9,11 +9,13 @@ import SpriteKit
 
 struct SpriteKitMapView: View {
     @EnvironmentObject private var map: MapManager
+    @EnvironmentObject private var step: StepManager   // wherever your userId comes from
     
     @State private var showProfile = false
     @State private var showSettings = false
+    @State private var showShop = false
     
-    private var isModalPresented: Bool { showProfile || showSettings }
+    private var isModalPresented: Bool { showProfile || showSettings || showShop}
     
     var body: some View {
         ZStack {
@@ -46,7 +48,9 @@ struct SpriteKitMapView: View {
 
                             case 2:
                                 Button {
-                                    print("Money tapped")
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                                        showShop = true
+                                    }
                                 } label: {
                                     Image("money_icon 1")
                                         .resizable()
@@ -109,13 +113,36 @@ struct SpriteKitMapView: View {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                 showProfile = false
                                 showSettings = false
+                                showShop = false
+
                             }
                         }
 
                     // Choose which popup to show
                     GeometryReader { g in
-                        Group {
-                            if showProfile {
+                        Group {if showShop {
+                            ShopPanel(
+                                items: defaultShopItems,
+                                onClose: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                        showShop = false
+                                    }
+                                },
+                                onBuy: { item in
+                                    if let scene = map.scene as? GameScene,
+                                       let uid = map.userId ?? step.userId {
+                                        scene.attemptPurchaseAndStartPlacement(
+                                            type: item.type,
+                                            price: item.price,
+                                            userId: uid
+                                        )
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                            showShop = false
+                                        }
+                                    }
+                                }
+                            )
+                        } else if showProfile {
                                 ProfileView(onClose: {
                                     Task {
                                         await map.refreshNow()
