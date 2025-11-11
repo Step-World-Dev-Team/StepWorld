@@ -299,7 +299,7 @@ extension UserManager {
         return try snapshot.documents.map { try $0.data(as: DBDailyMetrics.self) }
     }
     
-    private static func dateId(for date: Date) -> String {
+    static func dateId(for date: Date) -> String {
         let fmt = DateFormatter()
         fmt.calendar = .init(identifier: .gregorian)
         fmt.locale = .init(identifier: "en_US_POSIX")
@@ -325,40 +325,6 @@ private struct UserMapWrapper: Codable {
 }
 
 extension UserManager {
-    /*
-     
-     
-     
-     /// Fetch buildings; convert x/y back to CGFloat for your SpriteKit code
-     func fetchMapBuildings(userId: String) async throws -> [[String: Any]] {
-     let snap = try await userDocument(userId).getDocument()
-     guard let raw = snap.data()?["map_buildings"] as? [[String: Any]] else { return [] }
-     
-     return raw.map { d in
-     var out = d
-     let xNum = d["x"] as? NSNumber
-     let yNum = d["y"] as? NSNumber
-     out["x"] = CGFloat(xNum?.doubleValue ?? 0)
-     out["y"] = CGFloat(yNum?.doubleValue ?? 0)
-     return out
-     }
-     }
-     */
-    /*
-     func saveMapBuildings(userId: String, buildings: [Building]) async throws {
-     try await userDocument(userId).setData([
-     "map_buildings": try encoder.encode(buildings),
-     "map_updated_at": FieldValue.serverTimestamp()
-     ], merge: true)
-     }
-     
-     func fetchMapBuildings(userId: String) async throws -> [Building] {
-     let snap = try await userDocument(userId).getDocument()
-     guard let arr = snap.data()?["map_buildings"] as? [[String: Any]] else { return [] }
-     // decode each item back to Building
-     return try arr.map { try decoder.decode(Building.self, from: $0) }
-     }
-     */
     
     // save array of building data
     func saveMapBuildings(userId: String, buildings: [Building]) async throws {

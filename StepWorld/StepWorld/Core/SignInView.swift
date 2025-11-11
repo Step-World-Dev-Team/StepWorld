@@ -18,7 +18,7 @@ struct SignInView: View {
     @AppStorage("remember_me") private var rememberMe: Bool = true
     @AppStorage("saved_email") private var savedEmail: String = ""
     
-    @State private var isSignedIn = false
+    //@State private var isSignedIn = false
     
     var body: some View {
         NavigationStack {
@@ -77,6 +77,21 @@ struct SignInView: View {
                         .cornerRadius(10)
                         .frame(width: 300, height: 44)
                     
+                    if viewModel.mode == .signUp {
+                        TextField("Display name (optional)", text: $viewModel.displayName)
+                            .textInputAutocapitalization(.words)
+                            .disableAutocorrection(true)
+                            .padding()
+                            .background(Color(red: 1.0, green: 0.9725, blue: 0.9059).opacity(0.75))
+                            .overlay(RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(red: 0.9216, green: 0.8431, blue: 0.6980), lineWidth: 1)
+                            )
+                            .foregroundColor(Color(red: 0.2353, green: 0.1647, blue: 0.1176))
+                            .cornerRadius(10)
+                            .frame(width: 300, height: 44)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                    
                     // Space between text fields and button
                     Spacer()
                     
@@ -98,7 +113,7 @@ struct SignInView: View {
                                 // Save email if desired
                                 if rememberMe { savedEmail = viewModel.email } else { savedEmail = "" }
                                 
-                                isSignedIn = true
+                                //isSignedIn = true
                             } catch {
                                 viewModel.errorText = (error as NSError).localizedDescription
                                 print("Auth failed: \(error)")
@@ -131,6 +146,7 @@ struct SignInView: View {
                             viewModel.mode = (viewModel.mode == .signIn) ? .signUp : .signIn
                             viewModel.errorText = nil
                             viewModel.confirmPassword = ""
+                            viewModel.displayName = ""
                         }
                     } label: {
                         Text(viewModel.mode == .signIn
@@ -154,32 +170,12 @@ struct SignInView: View {
                 .padding()
                 
             }
-            // When bool value is changed it sends the user to MapView
-            .navigationDestination(isPresented: $isSignedIn) {
-                SpriteKitMapView()
-                    .environmentObject(mapManager)
-            }
         }
         .task {
             Task {
                 // Pre-fill previously saved email
                 if !savedEmail.isEmpty {
                     viewModel.email = savedEmail
-                }
-                
-                // Only auto-sign in if "Remember me" is enabled and Firebase has a current user
-                if rememberMe,
-                   let authed = try? AuthenticationManager.shared.getAuthenticatedUser() {
-                    
-                    // Initialize your managers
-                    stepManager.userId = authed.uid
-                    mapManager.userId  = authed.uid
-                    
-                    // Load any needed data
-                    try? await mapManager.loadFromFirestoreIfAvailable()
-                    
-                    // Move to main view
-                    isSignedIn = true
                 }
             }
         }

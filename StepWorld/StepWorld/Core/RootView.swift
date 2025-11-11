@@ -40,6 +40,8 @@ struct RootView: View {
                                 stepManager.userId = authed.uid
                                 mapManager.userId  = authed.uid   // propagates to scene via didSet, if you added that
                                 try? await mapManager.loadFromFirestoreIfAvailable()
+                                stepManager.syncToday()          // HealthKit → Firestore
+                                await mapManager.refreshNow()    // Firestore → UI 
                             } else {
                                 stepManager.userId = nil
                                 mapManager.userId  = nil

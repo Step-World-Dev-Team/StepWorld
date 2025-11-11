@@ -52,6 +52,7 @@ final class GameScene: SKScene {
     private let cameraNode = SKCameraNode()
     private var background: SKSpriteNode!
     private var mapInfo: TMXMapInfo?
+    private var didSetup = false
 
     // MARK: - Plots
     private var plotNodes: [SKShapeNode] = []
@@ -84,6 +85,11 @@ final class GameScene: SKScene {
 
     // MARK: - Scene lifecycle
     override func didMove(to view: SKView) {
+        // Run setup only once per scene instance
+        // fix for crashing on signup
+        guard !didSetup else { return }
+        didSetup = true
+        
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
@@ -93,13 +99,11 @@ final class GameScene: SKScene {
         background.zPosition = -10
         addChild(background)
 
-        // Build plots from TMX; fallback if none so you always see something
-        let hadPlots = buildPlotsFromTMX()
-        if !hadPlots { buildDebugPlots() }
+       
 
         // Camera
-        camera = cameraNode
-        addChild(cameraNode)
+        if camera == nil { camera = cameraNode }
+        if cameraNode.parent == nil { addChild(cameraNode) }
         cameraNode.setScale(initialZoom)
         rescaleWorldBillboardsForCamera()
         centerCamera()
@@ -109,25 +113,33 @@ final class GameScene: SKScene {
         setupHUD()
 
         // Gestures
-        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinchGesture(_:)))
-        pinch.cancelsTouchesInView = false
-        pinch.delaysTouchesBegan = false
-        pinch.delaysTouchesEnded = false
-        view.addGestureRecognizer(pinch); pinchGR = pinch
-
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(panGesture(_:)))
-        pan.cancelsTouchesInView = false
-        pan.delaysTouchesBegan = false
-        pan.delaysTouchesEnded = false
-        view.addGestureRecognizer(pan); panGR = pan
-
+        if pinchGR == nil {
+            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinchGesture(_:)))
+            pinch.cancelsTouchesInView = false
+            pinch.delaysTouchesBegan = false
+            pinch.delaysTouchesEnded = false
+            view.addGestureRecognizer(pinch); pinchGR = pinch
+        }
+        
+        if panGR == nil {
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(panGesture(_:)))
+            pan.cancelsTouchesInView = false
+            pan.delaysTouchesBegan = false
+            pan.delaysTouchesEnded = false
+            view.addGestureRecognizer(pan); panGR = pan
+        }
+        
+        // Build plots from TMX; fallback if none so you always see something
+        let hadPlots = buildPlotsFromTMX()
+        if !hadPlots { buildDebugPlots() }
+        
         print("✅ GameScene ready. plots=\(plotNodes.count) zoom=\(cameraNode.xScale)")
     }
-
-    deinit {
-        view?.gestureRecognizers?.forEach { gr in
-            if gr === pinchGR || gr === panGR { view?.removeGestureRecognizer(gr) }
-        }
+    
+    // When the scene is about to leave a view, clean up recognizers so we don't duplicate them later.
+    override func willMove(from view: SKView) {
+        if let pinch = pinchGR { view.removeGestureRecognizer(pinch); pinchGR = nil }
+        if let pan = panGR { view.removeGestureRecognizer(pan); panGR = nil }
     }
 
     // MARK: - TMX → plots
@@ -1148,11 +1160,13 @@ final class GameScene: SKScene {
         return buildings.map { node in
             let type = (node.userData?["type"] as? String) ?? "Unknown"
             let plot = (node.userData?["plot"] as? String) ?? "UnknownPlot"
+            let level = (node.userData?["level"] as? Int)    ?? 1
             return [
                 "type": type,
                 "plot": plot,
                 "x": node.position.x,
-                "y": node.position.y
+                "y": node.position.y,
+                "level": level
             ]
         }
     }
