@@ -14,7 +14,11 @@ struct ShopItem: Identifiable {
 }
 
 let defaultShopItems: [ShopItem] = [
-    .init(type: "JackOLantern", price: 150, iconName: "JackOLantern"),
-    .init(type: "SunFlower",    price: 120, iconName: "SunFlower"),
+    .init(type: "JackOLantern", price: 100, iconName: "JackOLantern"),
+    .init(type: "SunFlower",    price: 80, iconName: "SunFlower"),
+    .init(type: "Snowman_04", price: 150, iconName: "Snowman_04"),
+    .init(type: "WaterFountain_04", price: 500, iconName: "WaterFountain_04"),
+    .init(type: "Well_01", price: 500, iconName: "Well_01"),
+
 ]
 
