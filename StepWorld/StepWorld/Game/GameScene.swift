@@ -79,8 +79,8 @@ final class GameScene: SKScene {
     var userId: String!
     
     // MARK: - Skins
-    var blueBarnActive = false
-    var candyHouseActive = false
+    var blueBarnActive = true
+    var candyHouseActive = true
     
     private func triggerMapChanged() {
         onMapChanged?()
