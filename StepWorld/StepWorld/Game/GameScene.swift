@@ -6,6 +6,7 @@
 
 import SpriteKit
 import UIKit
+import AVFoundation
 
 /// Requires TMXPlotLoader.swift in the same target (with top-level TMXMapInfo & PlotObject).
 
@@ -81,6 +82,47 @@ final class GameScene: SKScene {
         onMapChanged?()
     }
 
+    // MARK: - Sound
+    
+    private var bgm: SKAudioNode?
+
+    private func configureAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            // `.ambient` lets your game respond to system volume and mix with other audio
+            try session.setCategory(.ambient, options: [.mixWithOthers])
+            try session.setActive(true)
+            print("🎧 Audio session configured for ambient mix mode")
+        } catch {
+            print("⚠️ Could not set audio session:", error)
+        }
+    }
+    
+    private func playLoopingSFX(_ name: String,
+                                loops: Int = 1,
+                                volume: CGFloat = 1.0,
+                                clipDuration: TimeInterval = 1.0) {
+        // assumes your sound files are .mp3 (you can change this to "wav" if needed)
+        guard let url = Bundle.main.url(forResource: name, withExtension: "mp3") else {
+            print("❌ Missing sound \(name).mp3 in bundle.")
+            return
+        }
+
+        let node = SKAudioNode(url: url)
+        node.isPositional = false
+        addChild(node)
+
+        // fade in quickly, wait for total playtime (loops × clip length), then fade out & remove
+        node.run(.sequence([
+            .changeVolume(to: Float(volume), duration: 0.05),
+            .wait(forDuration: clipDuration * Double(loops)),
+            .changeVolume(to: 0.0, duration: 0.3),
+            .removeFromParent()
+        ]))
+    }
+
+
+    
     // MARK: - Scene lifecycle
     override func didMove(to view: SKView) {
         backgroundColor = .black
@@ -91,7 +133,19 @@ final class GameScene: SKScene {
         background.position = .zero
         background.zPosition = -10
         addChild(background)
-
+        
+        // start background music
+        configureAudioSession()
+        
+        let music = SKAudioNode(fileNamed: "town_bgm")
+        music.autoplayLooped = true
+        music.isPositional = false
+        music.run(.changeVolume(to: 0.5, duration: 0))
+        addChild(music)
+        music.name = "BackgroundMusic"
+        bgm = music
+        print("🎵 Music node added to scene: \(music)")
+        
         // Build plots from TMX; fallback if none so you always see something
         let hadPlots = buildPlotsFromTMX()
         if !hadPlots { buildDebugPlots() }
@@ -737,6 +791,8 @@ final class GameScene: SKScene {
     
     private func showBuildMenu() {
         
+        run(.playSoundFileNamed("pop", waitForCompletion: false))
+        
         //New code
         guard let plot = selectedPlot else { return }
 
@@ -850,6 +906,7 @@ final class GameScene: SKScene {
 
     private func handleBuildMenuTap(_ tapped: [SKNode]) -> Bool {
         guard buildMenu != nil else { return false }
+        
         if let node = tapped.first(where: { ($0.name ?? "").hasPrefix("build:")
                                       || $0.name == "cancel" }) {
             let name = node.name ?? ""
@@ -879,6 +936,9 @@ final class GameScene: SKScene {
                                 // Only place the building if payment succeeded
                                 self.placeBuildingOnSelectedPlot(assetName: asset)
                                 self.triggerMapChanged()
+                                
+                                //Play sound
+                                playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
 
                             } catch {
                                 print("Could not build \(asset): \(error.localizedDescription)")
@@ -914,6 +974,7 @@ final class GameScene: SKScene {
                         guard let self, let plot = self.selectedPlot, let bld = self.building(on: plot) else { return }
                         await self.upgrade(building: bld, on: plot)
                     }
+                
                     dismissBuildMenu()
                     return true
                 /* Old Logic (kept just in case)
@@ -938,6 +999,9 @@ final class GameScene: SKScene {
     }
     
     private func showManageMenu(for plot: SKSpriteNode) {
+        
+        run(.playSoundFileNamed("pop", waitForCompletion: false))
+        
         dismissBuildMenu() // reuse the same container slot
         let menu = SKNode(); menu.zPosition = 10_001
         cameraNode.addChild(menu); buildMenu = menu
@@ -1092,6 +1156,10 @@ final class GameScene: SKScene {
                 building.userData?["level"] = nextLevel
                 print("\(type) upgraded to level \(nextLevel)")
                 triggerMapChanged()
+                
+                //Play sound
+                playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
+
             } else {
                 print("No image named \(newTextureName).png found")
             }
@@ -1116,6 +1184,8 @@ final class GameScene: SKScene {
         do {
             let newBalance = try await UserManager.shared.refund(userId: uid, amount: refundAmount)
             print("Refunded \(refundAmount). New balance: \(newBalance)")
+            
+            playLoopingSFX("coin_drop", loops: 1, volume: 0.8, clipDuration: 1.0)
             
             // Remove from scene and tracking; clear occupancy
             if let idx = buildings.firstIndex(of: building) { buildings.remove(at: idx) }
