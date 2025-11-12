@@ -65,7 +65,11 @@ final class MapManager: ObservableObject {
 
         let buildings = scene.getBuildingModels() // includes type/plot/x/y/level
         try await UserManager.shared.saveMapBuildings(userId: uid, buildings: buildings)
-        print("Saved \(buildings.count) buildings to Firestore for \(uid).")
+        
+        let decor = scene.currentDecorModels()
+        try await UserManager.shared.saveDecor(userId: uid, items: decor)
+        
+        print("Saved \(buildings.count) buildings & \(decor.count) decor to Firestore for \(uid).")
     }
     
     // refresh helper (steps + balance), called after save completes
@@ -115,7 +119,15 @@ final class MapManager: ObservableObject {
                 }
                 // We're on @MainActor already (MapManager is @MainActor), so just call it.
                 self.loadBuildingData(buildings)
-                print("✅ Loaded \(buildings.count) buildings from backend.")
+                
+                let decor = try await UserManager.shared.fetchDecor(userId: uid)
+                guard !decor.isEmpty else {
+                    print("No saved decore yet.")
+                    return
+                }
+                self.scene.applyLoadedDecor(decor)
+                
+                print("✅ Loaded \(buildings.count) buildings & \(decor.count) decor from backend.")
             } catch {
                 let ns = error as NSError
                 print("❌ fetchMapBuildings failed:", ns.localizedDescription, ns.domain, ns.code, ns.userInfo)

@@ -809,8 +809,8 @@ final class GameScene: SKScene {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let newBal = try await UserManager.shared.spend(userId: userId, amount: price)
-                print("🛒 Bought \(type) for \(price). New balance: \(newBal)")
+                let (newBal, _) = try await UserManager.shared.purchaseProduct(userId: userId, productId: type, quantity: 1)
+                print("🛒 Bought \(type). New balance: \(newBal)")
                 self.decorManager.startPlacement(type: type)    // ghost shows; user clicks to place
                 self.decorManager.movePreview(to: self.cameraNode.position)
                 self.updatePanBehaviorForPlacement()
@@ -852,6 +852,7 @@ final class GameScene: SKScene {
         if decorManager?.isPlacing == true {
             if decorManager?.confirmPlacement(at: loc) == true {
                 updatePanBehaviorForPlacement()
+                triggerMapChanged()
             }
                 return
         }
@@ -1086,7 +1087,7 @@ final class GameScene: SKScene {
                                 self.triggerMapChanged()
                                 
                                 //Play sound
-                                playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
+                                self.playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
 
                             } catch {
                                 print("Could not build \(asset): \(error.localizedDescription)")
@@ -1146,7 +1147,7 @@ final class GameScene: SKScene {
         return false
     }
     
-    private func showManageMenu(for plot: SKSpriteNode) {
+    private func showManageMenu(for plot: SKShapeNode) {
         
         run(.playSoundFileNamed("pop", waitForCompletion: false))
         
@@ -1421,5 +1422,15 @@ final class GameScene: SKScene {
     // separates the building name from the full asset Name
     private func baseName(from assetName: String) -> String {
         return assetName.components(separatedBy: "_").first ?? assetName
+    }
+}
+
+// MARK: Decore Bridge
+extension GameScene {
+    func currentDecorModels() -> [DecorItem] {
+        decorManager.getDecorModels()
+    }
+    func applyLoadedDecor(_ models: [DecorItem]) {
+        decorManager.applyLoadedDecor(models)
     }
 }

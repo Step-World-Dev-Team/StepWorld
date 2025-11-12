@@ -43,6 +43,17 @@ struct DBDailyMetrics: Codable {
     }
 }
 
+// MARK: Decore Data Model
+struct DBPurchase: Codable {
+    let purchaseId: String
+    let userId: String
+    let productId: String          // e.g., "JackOLantern"
+    let type: String               // "decor"
+    let quantity: Int
+    let pricePaid: Int
+    let createdAt: Date
+    let status: String
+}
 
 // MARK: User Manager
 final class UserManager {
@@ -355,24 +366,131 @@ extension DBUser {
     }
 }
 
+// MARK: Decore Data
+final class ShopRepository {
+    static let shared = ShopRepository()
+    private init() {}
+
+    private let db = Firestore.firestore()
+    private var catalog: CollectionReference { db.collection("ShopCatalog") }
+
+    // Fetch a product (price & type) to trust server-side values
+    func getProduct(_ productId: String) async throws -> (type: String, price: Int) {
+        let doc = try await catalog.document(productId).getDocument()
+        guard let data = doc.data(),
+              let isActive = data["is_active"] as? Bool, isActive,
+              let type = data["type"] as? String,
+              let price = (data["price"] as? Int) ?? (data["price"] as? NSNumber)?.intValue
+        else { throw NSError(domain: "Shop", code: 404, userInfo: [NSLocalizedDescriptionKey: "Product not found or inactive"]) }
+        return (type, price)
+    }
+}
+
+extension UserManager {
+    private func decorFieldKey() -> String { "decor_items" }
+
+    func saveDecor(userId: String, items: [DecorItem]) async throws {
+        // Firestore.Encoder handles nested maps fine (CGPoint encodes as {x,y})
+        let encoded: [[String: Any]] = try items.map { try encoder.encode($0) }
+        try await userDocument(userId).setData([
+            decorFieldKey(): encoded,
+            "decor_updated_at": FieldValue.serverTimestamp()
+        ], merge: true)
+    }
+
+    func fetchDecor(userId: String) async throws -> [DecorItem] {
+        let snap = try await userDocument(userId).getDocument()
+        guard let raw = snap.data()?[decorFieldKey()] as? [[String: Any]] else { return [] }
+        return try raw.map { try decoder.decode(DecorItem.self, from: $0) }
+    }
+    
+    func purchaseProduct(userId: String, productId: String, quantity: Int = 1) async throws -> (newBalance: Int, purchaseId: String) {
+            let db = Firestore.firestore()
+            let userRef = userDocument(userId)
+            let purchasesRef = userRef.collection("purchases")
+            let invRef = userRef.collection("inventory").document(productId)
+            let product = try await ShopRepository.shared.getProduct(productId)
+
+            return try await withCheckedThrowingContinuation { cont in
+                db.runTransaction({ (txn, errPtr) -> Any? in
+                    do {
+                        // 1) Read user balance
+                        let userSnap = try txn.getDocument(userRef)
+                        var balance = (userSnap.data()?["balance"] as? Int) ?? 0
+
+                        // 2) Compute total cost
+                        let total = product.price * max(1, quantity)
+                        guard total >= 0, balance >= total else {
+                            throw SpendError.insufficientFunds
+                        }
+
+                        // 3) Deduct & write new balance
+                        balance -= total
+                        if userSnap.exists {
+                            txn.updateData(["balance": balance], forDocument: userRef)
+                        } else {
+                            txn.setData(["user_id": userId, "balance": balance], forDocument: userRef, merge: true)
+                        }
+
+                        // 4) Record purchase
+                        let purchaseId = purchasesRef.document().documentID
+                        let purchase: [String: Any] = [
+                            "purchaseId": purchaseId,
+                            "userId": userId,
+                            "productId": productId,
+                            "type": product.type,
+                            "quantity": quantity,
+                            "pricePaid": product.price,
+                            "createdAt": FieldValue.serverTimestamp(),
+                            "status": "completed"
+                        ]
+                        txn.setData(purchase, forDocument: purchasesRef.document(purchaseId))
+
+                        // 5) Increment inventory count
+                        txn.setData(["quantity": FieldValue.increment(Int64(quantity))],
+                                    forDocument: invRef, merge: true)
+
+                        return ["balance": balance, "purchaseId": purchaseId]
+                    } catch let e as NSError {
+                        errPtr?.pointee = e
+                        return nil
+                    }
+                }, completion: { result, error in
+                    if let error = error {
+                        if case SpendError.insufficientFunds = error { return cont.resume(throwing: SpendError.insufficientFunds) }
+                        return cont.resume(throwing: error)
+                    }
+                    guard let dict = result as? [String: Any],
+                          let bal = dict["balance"] as? Int,
+                          let pid = dict["purchaseId"] as? String else {
+                        return cont.resume(throwing: NSError(domain: "Shop", code: -3, userInfo: [NSLocalizedDescriptionKey: "Bad transaction result"]))
+                    }
+                    cont.resume(returning: (bal, pid))
+                })
+            }
+        }
+}
+
+
+
 // MARK: Helper Functions
 extension UserManager {
     func ensureUserExists(for auth: AuthDataResultModel) async throws {
-            do {
-                _ = try await getUser(userId: auth.uid)
-            } catch {
-                let newUser = DBUser.fromAuth(auth)
-                try await Firestore.firestore().collection("Users")
-                    .document(auth.uid)
-                    .setData([
-                        "user_id": newUser.userId,
-                        "email": newUser.email ?? "",
-                        "photo_url": newUser.photoUrl ?? "",
-                        "name": newUser.name ?? "",
-                        "balance": newUser.balance ?? 0
-                    ], merge: true)
-            }
+        do {
+            _ = try await getUser(userId: auth.uid)
+        } catch {
+            let newUser = DBUser.fromAuth(auth)
+            try await Firestore.firestore().collection("Users")
+                .document(auth.uid)
+                .setData([
+                    "user_id": newUser.userId,
+                    "email": newUser.email ?? "",
+                    "photo_url": newUser.photoUrl ?? "",
+                    "name": newUser.name ?? "",
+                    "balance": newUser.balance ?? 0
+                ], merge: true)
         }
+    }
 }
 
 // TODO: Refactor encoder and decoder functions

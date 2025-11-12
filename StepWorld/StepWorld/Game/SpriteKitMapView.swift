@@ -19,6 +19,8 @@ struct SpriteKitMapView: View {
     @State private var showSettings = false
     @State private var showShop = false
     
+    @StateObject private var shopVM = ShopViewModel()
+    
     private var isModalPresented: Bool { showProfile || showSettings || showShop}
     
     var body: some View {
@@ -126,16 +128,17 @@ struct SpriteKitMapView: View {
                     GeometryReader { g in
                         Group {if showShop {
                             ShopPanel(
-                                items: defaultShopItems,
+                                items: shopVM.items,
                                 onClose: {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                         showShop = false
                                     }
                                 },
                                 onBuy: { item in
-                                    if let scene = map.scene as? GameScene,
-                                       let uid = map.userId ?? step.userId {
-                                        scene.attemptPurchaseAndStartPlacement(
+                                    // Prefer map.userId, fallback to step.userId (if your StepManager has it)
+                                    if let uid = map.userId ?? step.userId {
+                                        // map.scene is already a GameScene, no need to cast
+                                        map.scene.attemptPurchaseAndStartPlacement(
                                             type: item.type,
                                             price: item.price,
                                             userId: uid
@@ -143,9 +146,12 @@ struct SpriteKitMapView: View {
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                             showShop = false
                                         }
+                                    } else {
+                                        print("⚠️ No user id available; cannot buy.")
                                     }
                                 }
                             )
+                            .task { await shopVM.load() }
                         } else if showProfile {
                                 ProfileView(onClose: {
                                     Task {
