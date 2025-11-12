@@ -224,6 +224,7 @@ struct SpriteKitMapView: View {
                                         do {
                                             try AuthenticationManager.shared.signOutUser()   // ← this triggers the listener
                                             map.userId = nil                                 // optional: clear local state
+                                            map.resetScene()
                                             showSettings = false
                                             print("📤 signOut requested from SettingsView")
                                         } catch {
