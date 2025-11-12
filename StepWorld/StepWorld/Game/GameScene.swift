@@ -98,12 +98,50 @@ final class GameScene: SKScene {
     func unlockSkin(baseType: String, skin: String) {
         ownedSkins.insert("\(baseType)#\(skin)")
         equippedSkinForType[baseType] = skin  // auto-equip on purchase
+        applySkinToAllBuildings(of: baseType, skin: skin) // <- repaint existing now
     }
 
     func equipSkin(baseType: String, skin: String) {
         guard ownedSkins.contains("\(baseType)#\(skin)") else { return }
         equippedSkinForType[baseType] = skin
+        applySkinToAllBuildings(of: baseType, skin: skin) // <- repaint existing now
     }
+    
+    func clearEquippedSkin(baseType: String) {
+        equippedSkinForType.removeValue(forKey: baseType)
+        applySkinToAllBuildings(of: baseType, skin: nil)  // <- revert existing now
+    }
+    
+    // Apply a (new) equipped skin to all existing buildings of this base type.
+    // If `skin` is nil, revert them to default art and clear userData["skin"].
+    private func applySkinToAllBuildings(of baseType: String, skin: String?) {
+        for node in buildings {
+            let type = (node.userData?["type"] as? String) ?? ""
+            guard type == baseType else { continue }
+            let level = (node.userData?["level"] as? Int) ?? 1
+
+            // Resolve the sprite type name from baseType + optional skin
+            let resolvedType: String
+            switch (baseType, skin) {
+            case ("Barn",  "Blue"):  resolvedType = "BlueBarn"
+            case ("House", "Candy"): resolvedType = "CandyHouse"
+            default:                 resolvedType = baseType
+            }
+            let texName = "\(resolvedType)_L\(level)"
+
+            if UIImage(named: texName) != nil {
+                node.texture = SKTexture(imageNamed: texName)
+                node.size = node.texture!.size()
+                // persist/clear the skin on the node so upgrades follow the correct path
+                if node.userData == nil { node.userData = [:] }
+                if let s = skin { node.userData?["skin"] = s } else { node.userData?.removeObject(forKey: "skin") }
+            } else {
+                print("⚠️ Missing texture \(texName)")
+            }
+        }
+        triggerMapChanged()
+    }
+
     //New Code
     
     private func triggerMapChanged() {
@@ -272,13 +310,13 @@ final class GameScene: SKScene {
                     anchor: CGPoint(x: 0.50, y: 0.6),
                     perBuildingAnchor: [:]),
         "Plot02": PlotRule(
-            allowed: ["Barn", "House", "Farm"],
-            maxLevel: ["Barn": 4, "House": 2, "Farm": 4],
+            allowed: ["Barn", "House"],
+            maxLevel: ["Barn": 4, "House": 2],
             anchor: CGPoint(x: 0.5, y: 0.5),
             perBuildingAnchor: ["Barn": CGPoint(x: 0.55, y: 0.55)]),
         "Plot03": PlotRule(
-                    allowed: ["Barn", "House", "Farm"],
-                    maxLevel: ["Barn": 4, "House": 2, "Farm": 4],
+                    allowed: ["Barn", "House"],
+                    maxLevel: ["Barn": 4, "House": 2],
                     anchor: CGPoint(x: 0.5, y: 0.5),
                     perBuildingAnchor: ["Barn": CGPoint(x: 0.50, y: 0.55)])
         // Add more as needed...
@@ -1426,9 +1464,7 @@ final class GameScene: SKScene {
         return buildings.map { Building(node: $0) }
     }
     
-    func clearEquippedSkin(baseType: String) {
-        equippedSkinForType.removeValue(forKey: baseType)
-    }
+
 
     // Place buildings from typed models (the only new "load" you need)
     func applyLoadedBuildings(_ models: [Building]) {

@@ -183,6 +183,24 @@ struct SpriteKitMapView: View {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                         showShop = false
                                     }
+                                    
+                                },
+                                isOwned: { item in
+                                    // Only skins have "#". Decor should never be considered owned for the UI.
+                                    let parts = item.type.split(separator: "#")
+                                    guard parts.count == 2 else { return false }          // <- decor/buildings
+                                    let sku = item.type
+                                    let skin = String(parts[1])
+                                    return skin == "Default" || map.inventory.ownedSkins.contains(sku)
+                                },
+                                isEquipped: { item in
+                                    // Only skins can be equipped
+                                    let parts = item.type.split(separator: "#")
+                                    guard parts.count == 2 else { return false }          // <- key change
+                                    let base = String(parts[0])
+                                    let skin = String(parts[1])
+                                    if skin == "Default" { return map.equipped[base] == nil }
+                                    return map.equipped[base] == skin
                                 }
                             )
                             .task { await shopVM.load() }
