@@ -46,7 +46,8 @@ final class StatsDisplayViewModel: ObservableObject {
         }
         
         // Live updates for today's steps (daily_metrics/todayId)
-        let todayId = UserManager.shared.dateId(for: Date())
+        //let todayId = UserManager.shared.dateId(for: Date())
+        let todayId = UserManager.dateId(for: Date())
         let dailyRef = Firestore.firestore()
             .collection("Users")
             .document(uid)

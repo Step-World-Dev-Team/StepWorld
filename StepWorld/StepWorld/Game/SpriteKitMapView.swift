@@ -6,14 +6,20 @@
 //
 import SwiftUI
 import SpriteKit
+import FirebaseAuth
 
 struct SpriteKitMapView: View {
     @EnvironmentObject private var map: MapManager
     @EnvironmentObject private var step: StepManager   // wherever your userId comes from
     
+    @AppStorage("remember_me") private var rememberMe: Bool = true
+    
+    
     @State private var showProfile = false
     @State private var showSettings = false
     @State private var showShop = false
+    
+    @StateObject private var shopVM = ShopViewModel()
     
     private var isModalPresented: Bool { showProfile || showSettings || showShop}
     
@@ -21,15 +27,15 @@ struct SpriteKitMapView: View {
         ZStack {
             SpriteView(scene: map.scene)
                 .ignoresSafeArea()
-
+            
             Color.clear
-                // Top-right stats
+            // Top-right stats
                 .overlay(alignment: .topTrailing) {
                     StatsDisplay()
                         .padding(.top, 4)
                         .padding(.trailing, 6)
                 }
-                // Bottom bar with 4 buttons (profile opens modal)
+            // Bottom bar with 4 buttons (profile opens modal)
                 .overlay(alignment: .bottom) {
                     HStack(spacing: 0) {
                         ForEach(1...4, id: \.self) { index in
@@ -45,7 +51,7 @@ struct SpriteKitMapView: View {
                                         .offset(x: 0, y: 46)
                                         .frame(maxWidth: .infinity)
                                 }
-
+                                
                             case 2:
                                 Button {
                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
@@ -59,7 +65,7 @@ struct SpriteKitMapView: View {
                                         .offset(x: 0, y: 46)
                                         .frame(maxWidth: .infinity)
                                 }
-
+                                
                             case 3:
                                 Button {
                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
@@ -73,7 +79,7 @@ struct SpriteKitMapView: View {
                                         .offset(x: 0, y: 46)
                                         .frame(maxWidth: .infinity)
                                 }
-
+                                
                             case 4:
                                 Button {
                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
@@ -87,20 +93,20 @@ struct SpriteKitMapView: View {
                                         .offset(x: 0, y: 46)
                                         .frame(maxWidth: .infinity)
                                 }
-
+                                
                             default:
                                 EmptyView()
                             }
                         }
-
+                        
                     }
                     .padding(.vertical, 12)
                     .ignoresSafeArea(edges: .bottom)
                     .allowsHitTesting(!isModalPresented)
                     .zIndex(1)
                 }
-
-
+            
+            
             if isModalPresented {
                 ZStack {
                     // Dim fades independently
@@ -117,12 +123,25 @@ struct SpriteKitMapView: View {
 
                             }
                         }
-
+                    
                     // Choose which popup to show
                     GeometryReader { g in
                         Group {if showShop {
+                            
                             ShopPanel(
-                                items: defaultShopItems,
+                                // Merge server decor/buildings with local skin SKUs
+                                items: {
+                                    // 1) Server items from Firestore (decor/buildings)
+                                    let buildingItems: [ShopItem] = shopVM.items
+
+                                    // 2) Local skin SKUs (no backend change needed today)
+                                    let skinEntries: [ShopItem] = [
+                                        .init(type: "Barn#Blue",   price: 150, iconName: "BlueBarn_L1"),
+                                        .init(type: "House#Candy", price: 150, iconName: "CandyHouse_L1"),
+                                    ]
+
+                                    return buildingItems + skinEntries
+                                }(),
                                 onClose: {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                         showShop = false
@@ -131,17 +150,38 @@ struct SpriteKitMapView: View {
                                 onBuy: { item in
                                     if let scene = map.scene as? GameScene,
                                        let uid = map.userId ?? step.userId {
-                                        scene.attemptPurchaseAndStartPlacement(
-                                            type: item.type,
-                                            price: item.price,
-                                            userId: uid
-                                        )
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                                            showShop = false
+
+                                        if item.type.contains("#") {
+                                            // Treat "Barn#Blue" / "House#Candy" as SKIN SKUs
+                                            let parts = item.type.split(separator: "#")
+                                            let baseType = String(parts[0])
+                                            let skin = String(parts[1])
+
+                                            // If already owned, equip; otherwise purchase+auto-equip
+                                            if map.inventory.ownedSkins.contains(item.type) {
+                                                map.equipSkin(baseType: baseType, skin: skin)
+                                            } else {
+                                                Task {
+                                                    await map.purchaseSkin(baseType: baseType,
+                                                                           skin: skin,
+                                                                           price: item.price,
+                                                                           userId: uid)
+                                                }
+                                            }
+                                        } else {
+                                            // Server-provided decor/building → same behavior as before
+                                            scene.attemptPurchaseAndStartPlacement(type: item.type,
+                                                                                   price: item.price,
+                                                                                   userId: uid)
                                         }
+                                    }
+
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                        showShop = false
                                     }
                                 }
                             )
+                            .task { await shopVM.load() }
                         } else if showProfile {
                                 ProfileView(onClose: {
                                     Task {
@@ -157,6 +197,17 @@ struct SpriteKitMapView: View {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                         showSettings = false
                                     }
+                                }, onSignOut: {
+                                    Task { @MainActor in
+                                        do {
+                                            try AuthenticationManager.shared.signOutUser()   // ← this triggers the listener
+                                            map.userId = nil                                 // optional: clear local state
+                                            showSettings = false
+                                            print("📤 signOut requested from SettingsView")
+                                        } catch {
+                                            print("❌ signOut failed: \(error)")
+                                        }
+                                    }
                                 })
                             }
                         }
@@ -171,16 +222,19 @@ struct SpriteKitMapView: View {
                 }
                 .zIndex(100)
             }
-
+            
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
+            if map.scene.userId == nil {
+                map.scene.userId = map.userId ?? Auth.auth().currentUser?.uid
+            }
             Task {
                 await map.refreshNow()
             }
         }
-
+        
     }
 }
 

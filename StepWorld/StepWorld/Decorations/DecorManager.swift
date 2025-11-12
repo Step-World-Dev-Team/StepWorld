@@ -132,6 +132,10 @@ public final class DecorManager {
         // Match preview scale if you kept it; otherwise set your preferred scale:
         if let ghost = previewNode { node.setScale(ghost.xScale) } else { node.setScale(0.8) }
         node.name = "decor"
+        
+        if node.userData == nil { node.userData = [:] }
+        node.userData?["type"] = type
+        
         scene.addChild(node)
         placed.append(node)
         
@@ -156,10 +160,13 @@ public final class DecorManager {
     // Saving / Loading
     public func getDecorModels() -> [DecorItem] {
         placed.map { n in
-            DecorItem(type: n.name ?? "decor",
-                      position: n.position,
-                      rotation: n.zRotation,
-                      scale: n.xScale)
+            let savedType = (n.userData?["type"] as? String) ?? n.name ?? "decor"
+            return DecorItem(
+                type: savedType,
+                position: n.position,
+                rotation: n.zRotation,
+                scale: n.xScale
+            )
         }
     }
     

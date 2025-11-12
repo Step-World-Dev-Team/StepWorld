@@ -6,6 +6,7 @@
 
 import SpriteKit
 import UIKit
+import FirebaseAuth
 import AVFoundation
 
 /// Requires TMXPlotLoader.swift in the same target (with top-level TMXMapInfo & PlotObject).
@@ -53,6 +54,7 @@ final class GameScene: SKScene {
     private let cameraNode = SKCameraNode()
     private var background: SKSpriteNode!
     private var mapInfo: TMXMapInfo?
+    private var didSetup = false
 
     // MARK: - Plots
     private var plotNodes: [SKShapeNode] = []
@@ -85,11 +87,27 @@ final class GameScene: SKScene {
     
     // MARK: - Database
     var onMapChanged: (() -> Void)?
-    var userId: String!
+    var userId: String?
     
     // MARK: - Skins
-    var blueBarnActive = true
-    var candyHouseActive = true
+    var blueBarnActive = false
+    var candyHouseActive = false
+    
+    //New code
+    // MARK: - Skins (ownership + currently equipped per base type)
+    private(set) var ownedSkins = Set<String>()               // e.g. "Barn#Blue", "House#Candy"
+    private var equippedSkinForType: [String: String] = [:]   // ["Barn":"Blue", "House":"Candy"]
+
+    func unlockSkin(baseType: String, skin: String) {
+        ownedSkins.insert("\(baseType)#\(skin)")
+        equippedSkinForType[baseType] = skin  // auto-equip on purchase
+    }
+
+    func equipSkin(baseType: String, skin: String) {
+        guard ownedSkins.contains("\(baseType)#\(skin)") else { return }
+        equippedSkinForType[baseType] = skin
+    }
+    //New Code
     
     private func triggerMapChanged() {
         onMapChanged?()
@@ -105,7 +123,6 @@ final class GameScene: SKScene {
 
 
     // MARK: - Sound
-    
     private var bgm: SKAudioNode?
 
     private func configureAudioSession() {
@@ -147,6 +164,11 @@ final class GameScene: SKScene {
     
     // MARK: - Scene lifecycle
     override func didMove(to view: SKView) {
+        // Run setup only once per scene instance
+        // fix for crashing on signup
+        guard !didSetup else { return }
+        didSetup = true
+        
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
@@ -168,18 +190,15 @@ final class GameScene: SKScene {
         bgm = music
         print("🎵 Music node added to scene: \(music)")
         
-        // Build plots from TMX; fallback if none so you always see something
-        let hadPlots = buildPlotsFromTMX()
-        if !hadPlots { buildDebugPlots() }
-        
+
         decorManager = DecorManager(
             scene: self,
             cameraNode: cameraNode,
             plotsProvider: { [weak self] in self?.plotNodes ?? [] })
 
         // Camera
-        camera = cameraNode
-        addChild(cameraNode)
+        if camera == nil { camera = cameraNode }
+        if cameraNode.parent == nil { addChild(cameraNode) }
         cameraNode.setScale(initialZoom)
         rescaleWorldBillboardsForCamera()
         centerCamera()
@@ -189,18 +208,26 @@ final class GameScene: SKScene {
         setupHUD()
 
         // Gestures
-        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinchGesture(_:)))
-        pinch.cancelsTouchesInView = false
-        pinch.delaysTouchesBegan = false
-        pinch.delaysTouchesEnded = false
-        view.addGestureRecognizer(pinch); pinchGR = pinch
-
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(panGesture(_:)))
-        pan.cancelsTouchesInView = false
-        pan.delaysTouchesBegan = false
-        pan.delaysTouchesEnded = false
-        view.addGestureRecognizer(pan); panGR = pan
-
+        if pinchGR == nil {
+            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinchGesture(_:)))
+            pinch.cancelsTouchesInView = false
+            pinch.delaysTouchesBegan = false
+            pinch.delaysTouchesEnded = false
+            view.addGestureRecognizer(pinch); pinchGR = pinch
+        }
+        
+        if panGR == nil {
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(panGesture(_:)))
+            pan.cancelsTouchesInView = false
+            pan.delaysTouchesBegan = false
+            pan.delaysTouchesEnded = false
+            view.addGestureRecognizer(pan); panGR = pan
+        }
+        
+        // Build plots from TMX; fallback if none so you always see something
+        let hadPlots = buildPlotsFromTMX()
+        if !hadPlots { buildDebugPlots() }
+        
         print("✅ GameScene ready. plots=\(plotNodes.count) zoom=\(cameraNode.xScale)")
         
         //for decor hover
@@ -211,11 +238,11 @@ final class GameScene: SKScene {
             self.hoverGR = hover
         }
     }
-
-    deinit {
-        view?.gestureRecognizers?.forEach { gr in
-            if gr === pinchGR || gr === panGR { view?.removeGestureRecognizer(gr) }
-        }
+    
+    // When the scene is about to leave a view, clean up recognizers so we don't duplicate them later.
+    override func willMove(from view: SKView) {
+        if let pinch = pinchGR { view.removeGestureRecognizer(pinch); pinchGR = nil }
+        if let pan = panGR { view.removeGestureRecognizer(pan); panGR = nil }
     }
 
     // MARK: - TMX → plots
@@ -231,7 +258,7 @@ final class GameScene: SKScene {
     
     // MARK: - Plot rules
     
-    // New Code
+    
     private struct PlotRule {
         let allowed: [String]
         let maxLevel: [String: Int]
@@ -283,7 +310,7 @@ final class GameScene: SKScene {
         return CGPoint(x: plot.position.x + local.x,
                        y: plot.position.y + local.y)
     }
-    // New Code
+    
     
 
     /// Build centered, full-size plot overlays from the TMX object layer
@@ -803,8 +830,8 @@ final class GameScene: SKScene {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let newBal = try await UserManager.shared.spend(userId: userId, amount: price)
-                print("🛒 Bought \(type) for \(price). New balance: \(newBal)")
+                let (newBal, _) = try await UserManager.shared.purchaseProduct(userId: userId, productId: type, quantity: 1)
+                print("🛒 Bought \(type). New balance: \(newBal)")
                 self.decorManager.startPlacement(type: type)    // ghost shows; user clicks to place
                 self.decorManager.movePreview(to: self.cameraNode.position)
                 self.updatePanBehaviorForPlacement()
@@ -846,6 +873,7 @@ final class GameScene: SKScene {
         if decorManager?.isPlacing == true {
             if decorManager?.confirmPlacement(at: loc) == true {
                 updatePanBehaviorForPlacement()
+                triggerMapChanged()
             }
                 return
         }
@@ -938,7 +966,7 @@ final class GameScene: SKScene {
         
         run(.playSoundFileNamed("pop", waitForCompletion: false))
         
-        //New code
+        
         guard let plot = selectedPlot else { return }
 
         // Figure out which buildings are allowed on this plot
@@ -949,7 +977,7 @@ final class GameScene: SKScene {
             print("No buildings allowed on \(plotName)")
             return
         }
-        //New code
+    
         
         
         dismissBuildMenu()
@@ -1067,7 +1095,7 @@ final class GameScene: SKScene {
                         // Run async spending logic in a Task
                         Task { [weak self] in
                             guard let self = self else { return }
-                            guard let uid = self.userId else {
+                            guard let uid = self.userId ?? Auth.auth().currentUser?.uid else {
                                 print("No userId set on GameScene")
                                 return
                             }
@@ -1083,7 +1111,7 @@ final class GameScene: SKScene {
                                 self.triggerMapChanged()
                                 
                                 //Play sound
-                                playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
+                                self.playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
 
                             } catch {
                                 print("Could not build \(asset): \(error.localizedDescription)")
@@ -1143,7 +1171,7 @@ final class GameScene: SKScene {
         return false
     }
     
-    private func showManageMenu(for plot: SKSpriteNode) {
+    private func showManageMenu(for building: SKSpriteNode) {
         
         run(.playSoundFileNamed("pop", waitForCompletion: false))
         
@@ -1204,21 +1232,22 @@ final class GameScene: SKScene {
     private func placeBuildingOnSelectedPlot(assetName: String) {
         guard let plot = selectedPlot else { return }
         
-        //New Code
+       
         let plotName = (plot.userData?["plotName"] as? String) ?? ""
         if let rule = plotRules[plotName], !rule.allowed.contains(assetName) {
             print("🚫 \(assetName) is not allowed on \(plotName)")
             // Optional: flash the plot or show a quick HUD tooltip
             return
         }
-        //New Code
+    
         
         //let pos = plot.position
         let pos = positionFor(assetName: assetName, on: plot)
         
         // Create the sprite first
-        let level = 1
         
+        /* Old Code
+        let level = 1
         let fullName: String
         switch assetName {
         case "Barn" where blueBarnActive:
@@ -1228,6 +1257,23 @@ final class GameScene: SKScene {
         default:
             fullName = "\(assetName)_L\(level)"
         }
+        */
+        //New Code
+        let baseType = assetName
+        let skin = equippedSkinForType[baseType]
+        let level = 1
+        
+        let resolvedType: String
+        switch (baseType, skin) {
+        case ("Barn",  "Blue"):  resolvedType = "BlueBarn"
+        case ("House", "Candy"): resolvedType = "CandyHouse"
+        default:                 resolvedType = baseType
+        }
+        
+        let fullName = "\(resolvedType)_L\(level)"
+        //New Code
+        
+        
         let sprite: SKSpriteNode
 
         if UIImage(named: fullName) != nil {
@@ -1238,13 +1284,13 @@ final class GameScene: SKScene {
         }
         
 
-
         
         // ✅ Now you can safely assign userData
         if sprite.userData == nil { sprite.userData = [:] }
         sprite.userData?["type"] = assetName     // "Barn" or "House"
         sprite.userData?["level"] = level        // start at level 1
         sprite.userData?["plot"] = (plot.userData?["plotName"] as? String) ?? "UnknownPlot"
+        if let skin { sprite.userData?["skin"] = skin }   // ✅ persist which skin was used (New Code)
 
         sprite.position = pos
         sprite.zPosition = 4
@@ -1278,6 +1324,15 @@ final class GameScene: SKScene {
         let type = (building.userData?["type"] as? String) ?? "Building"
         let currentLevel = (building.userData?["level"] as? Int) ?? 1
         let nextLevel = currentLevel + 1
+        //New Code
+        let skin = (building.userData?["skin"] as? String)
+        let resolvedType: String
+        switch (type, skin) {
+        case ("Barn",  "Blue"):  resolvedType = "BlueBarn"
+        case ("House", "Candy"): resolvedType = "CandyHouse"
+        default:                 resolvedType = type
+        }
+        let newTextureName = "\(resolvedType)_L\(nextLevel)"
         
         let plotName = (plot.userData?["plotName"] as? String) ?? ""
         let maxLevel = plotRules[plotName]?.maxLevel[type] ?? Int.max
@@ -1285,10 +1340,11 @@ final class GameScene: SKScene {
             print("\(type) cannot be upgraded beyond L\(maxLevel) on \(plotName)")
             return
         }
+        //New Code
         
         // Example: define upgrade cost logic
         let cost = nextLevel * 100  // cost currently set to 100 times the level of the building
-        guard let uid = self.userId else {
+        guard let uid = self.userId ?? Auth.auth().currentUser?.uid else {
             print("No userId set on GameScene");
             return
         }
@@ -1337,7 +1393,7 @@ final class GameScene: SKScene {
         let currentLevel = (building.userData?["level"] as? Int) ?? 1
         let refundAmount = sellRefundAmount(for: currentLevel)
         
-        guard let uid = self.userId else {
+        guard let uid = self.userId ?? Auth.auth().currentUser?.uid else {
             print("No userId set on GameScene")
             return
         }
@@ -1377,13 +1433,14 @@ final class GameScene: SKScene {
         return buildings.map { node in
             let type = (node.userData?["type"] as? String) ?? "Unknown"
             let plot = (node.userData?["plot"] as? String) ?? "UnknownPlot"
+            let level = (node.userData?["level"] as? Int)    ?? 1
             return [
                 "type": type,
                 "plot": plot,
                 "x": node.position.x,
                 "y": node.position.y,
                 "level": (node.userData?["level"] as? Int) ?? 1,
-                "skin":  (node.userData?["skin"]  as? String) ?? "Default"
+                "skin":  (node.userData?["skin"]  as? String) ?? "Default",
             ]
         }
     }
@@ -1435,5 +1492,15 @@ final class GameScene: SKScene {
     // separates the building name from the full asset Name
     private func baseName(from assetName: String) -> String {
         return assetName.components(separatedBy: "_").first ?? assetName
+    }
+}
+
+// MARK: Decore Bridge
+extension GameScene {
+    func currentDecorModels() -> [DecorItem] {
+        decorManager.getDecorModels()
+    }
+    func applyLoadedDecor(_ models: [DecorItem]) {
+        decorManager.applyLoadedDecor(models)
     }
 }
