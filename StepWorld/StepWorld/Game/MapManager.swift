@@ -15,7 +15,7 @@ final class MapManager: ObservableObject {
     @Published var balance: Int = 0
     @Published var todaySteps: Int = 0
     
-    let scene: GameScene
+    var scene: GameScene
     private var pendingSave: DispatchWorkItem?
    
     init() {
@@ -134,6 +134,21 @@ final class MapManager: ObservableObject {
                 print("❌ fetchMapBuildings failed:", ns.localizedDescription, ns.domain, ns.code, ns.userInfo)
             }
         }
+    }
+    
+    @MainActor
+    func resetScene() {
+        print("🗑️ Resetting GameScene for new session")
+        let newScene = GameScene(size: UIScreen.main.bounds.size)
+        newScene.scaleMode = .aspectFill
+
+        // rewire callback
+        newScene.onMapChanged = { [weak self] in
+            self?.scheduleSave()
+        }
+
+        // assign and keep reference
+        self.scene = newScene
     }
     
     // MARK: Refresh Functions
