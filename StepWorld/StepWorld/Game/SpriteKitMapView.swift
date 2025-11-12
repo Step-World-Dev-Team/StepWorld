@@ -138,6 +138,8 @@ struct SpriteKitMapView: View {
                                     let skinEntries: [ShopItem] = [
                                         .init(type: "Barn#Blue",   price: 150, iconName: "BlueBarn_L1"),
                                         .init(type: "House#Candy", price: 150, iconName: "CandyHouse_L1"),
+                                        .init(type: "Barn#Default", price: 0,   iconName: "Barn_L1"),
+                                        .init(type: "House#Default",   price: 0, iconName: "House_L1"),
                                     ]
 
                                     return buildingItems + skinEntries
@@ -158,7 +160,9 @@ struct SpriteKitMapView: View {
                                             let skin = String(parts[1])
 
                                             // If already owned, equip; otherwise purchase+auto-equip
-                                            if map.inventory.ownedSkins.contains(item.type) {
+                                            if skin == "Default" {
+                                                map.equipDefault(baseType: baseType)
+                                            } else if map.inventory.ownedSkins.contains(item.type) {
                                                 map.equipSkin(baseType: baseType, skin: skin)
                                             } else {
                                                 Task {

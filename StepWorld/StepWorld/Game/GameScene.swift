@@ -89,9 +89,6 @@ final class GameScene: SKScene {
     var onMapChanged: (() -> Void)?
     var userId: String?
     
-    // MARK: - Skins
-    var blueBarnActive = false
-    var candyHouseActive = false
     
     //New code
     // MARK: - Skins (ownership + currently equipped per base type)
@@ -1246,18 +1243,6 @@ final class GameScene: SKScene {
         
         // Create the sprite first
         
-        /* Old Code
-        let level = 1
-        let fullName: String
-        switch assetName {
-        case "Barn" where blueBarnActive:
-            fullName = "BlueBarn_L\(level)"
-        case "House" where candyHouseActive:
-            fullName = "CandyHouse_L\(level)"
-        default:
-            fullName = "\(assetName)_L\(level)"
-        }
-        */
         //New Code
         let baseType = assetName
         let skin = equippedSkinForType[baseType]
@@ -1283,13 +1268,14 @@ final class GameScene: SKScene {
             print("⚠️ Asset '\(fullName)' not found. Using placeholder.")
         }
         
-
+        
         
         // ✅ Now you can safely assign userData
         if sprite.userData == nil { sprite.userData = [:] }
-        sprite.userData?["type"] = assetName     // "Barn" or "House"
+        sprite.userData?["type"] = baseType     // "Barn" or "House"
         sprite.userData?["level"] = level        // start at level 1
         sprite.userData?["plot"] = (plot.userData?["plotName"] as? String) ?? "UnknownPlot"
+        
         if let skin { sprite.userData?["skin"] = skin }   // ✅ persist which skin was used (New Code)
 
         sprite.position = pos
@@ -1356,15 +1342,6 @@ final class GameScene: SKScene {
 
             // 🏗 Proceed with upgrade visuals and data
             
-            let newTextureName: String
-            switch type {
-            case "Barn" where blueBarnActive:
-                newTextureName = "BlueBarn_L\(nextLevel)"
-            case "House" where candyHouseActive:
-                newTextureName = "CandyHouse_L\(nextLevel)"
-            default:
-                newTextureName = "\(type)_L\(nextLevel)"
-            }
             
             if let newImage = UIImage(named: newTextureName) {
                 building.texture = SKTexture(imageNamed: newTextureName)
@@ -1449,6 +1426,10 @@ final class GameScene: SKScene {
     func getBuildingModels() -> [Building] {
         return buildings.map { Building(node: $0) }
     }
+    
+    func clearEquippedSkin(baseType: String) {
+        equippedSkinForType.removeValue(forKey: baseType)
+    }
 
     // Place buildings from typed models (the only new "load" you need)
     func applyLoadedBuildings(_ models: [Building]) {
@@ -1458,8 +1439,8 @@ final class GameScene: SKScene {
             // Keep your existing scaling rules
             let baseBuildingScale: CGFloat = 0.6
             let buildingScaleOverrides: [String: CGFloat] = [
-                "House": 0.8,
-                "Barn":  0.8
+                "House": 1,
+                "Barn":  1
             ]
             let scale = buildingScaleOverrides[m.type] ?? baseBuildingScale
             sprite.setScale(scale)
@@ -1494,6 +1475,7 @@ final class GameScene: SKScene {
         return assetName.components(separatedBy: "_").first ?? assetName
     }
 }
+
 
 // MARK: Decore Bridge
 extension GameScene {
