@@ -768,61 +768,60 @@ final class GameScene: SKScene {
     }
     private func attachForSaleSign(to plot: SKShapeNode, plotSize: CGSize) {
         // Avoid duplicates
-        if plot.childNode(withName: "forSaleSign") != nil { return }
+           if plot.childNode(withName: "forSaleSign") != nil { return }
 
-        // Root node for easy cleanup
-        let signNode = SKNode()
-        signNode.name = "forSaleSign"
-        signNode.zPosition = 30
+           // Create sprite from your asset
+           let sign = SKSpriteNode(imageNamed: "ForSale")
+           sign.name = "forSaleSign"
+           sign.zPosition = 30
 
-        // --- Post ---
-        let postWidth: CGFloat = 4
-        let postHeight: CGFloat = 20
-        let post = SKShapeNode(rectOf: CGSize(width: postWidth, height: postHeight), cornerRadius: 1.5)
-        post.fillColor = .brown
-        post.strokeColor = .clear
-        post.position = CGPoint(x: 0, y: postHeight / 2)
-        signNode.addChild(post)
+           // --- Size ---
+           // The PNG is large; scale it down here
+           sign.size = CGSize(width: 40, height: 30)  // tweak these until it looks perfect
 
-        // --- Signboard ---
-        let boardSize = CGSize(width: 60, height: 20)
-        let board = SKShapeNode(rectOf: boardSize, cornerRadius: 3)
-        board.fillColor = UIColor.white
-        board.strokeColor = UIColor.darkGray
-        board.lineWidth = 1.2
-        board.position = CGPoint(x: 0, y: postHeight)
-        signNode.addChild(board)
+           // --- Position above plot ---
+           let yAbove = plotSize.height * 0.5 + 30
+           sign.position = CGPoint(x: 0, y: yAbove)
 
-        // --- Text ---
-        let label = SKLabelNode(text: "For Sale")
-        label.fontName = "PressStart2P-Regular"
-        label.fontSize = 6
-        label.fontColor = .red
-        label.verticalAlignmentMode = .center
-        label.zPosition = 1
-        board.addChild(label)
+           // --- Stay same size on screen ---
+           // Apply inverse camera scale initially so it cancels zoom
+           sign.setScale(1.0 / cameraNode.xScale)
 
-        // --- Position sign above plot ---
-        let yAbove = plotSize.height * 0.5 + 10
-        signNode.position = CGPoint(x: 0, y: yAbove)
-        signNode.setScale(1.0 / cameraNode.xScale) // stay same size on screen
-        plot.addChild(signNode)
+           // Save its base size for later updates
+           if sign.userData == nil { sign.userData = [:] }
+           sign.userData?["baseSize"] = sign.size
 
-        // --- Optional gentle animation ---
-        let up = SKAction.moveBy(x: 0, y: 2, duration: 0.8)
-        up.timingMode = .easeInEaseOut
-        let down = up.reversed()
-        signNode.run(.repeatForever(.sequence([up, down])))
-    }
+           plot.addChild(sign)
+
+           // --- Optional gentle bobbing animation ---
+           let up = SKAction.moveBy(x: 0, y: 2, duration: 0.8)
+           up.timingMode = .easeInEaseOut
+           let down = up.reversed()
+           sign.run(.repeatForever(.sequence([up, down])))
+       }
+    
     private func rescaleWorldBillboardsForCamera() {
         let inv = 1.0 / cameraNode.xScale
-        for plot in plotNodes {
-            for child in plot.children where
-                child.name == "plotNameLabel" || child.name == "forSaleSign" {
-                child.setScale(inv)
-            }
-        }
-    }
+           for plot in plotNodes {
+               for child in plot.children {
+                   switch child.name {
+                   case "plotNameLabel":
+                       child.setScale(inv) // labels stay same size on screen
+                   case "forSaleSign":
+                       if let sign = child as? SKSpriteNode {
+                           // Reset its scale so it cancels zoom
+                           sign.setScale(1.0 / cameraNode.xScale)
+                           // Ensure size remains consistent
+                           if let baseSize = sign.userData?["baseSize"] as? CGSize {
+                               sign.size = baseSize
+                           }
+                       }
+                   default:
+                       break
+                   }
+               }
+           }
+       }
     public func attemptPurchaseAndStartPlacement(type: String, price: Int, userId: String) {
         Task { [weak self] in
             guard let self else { return }
