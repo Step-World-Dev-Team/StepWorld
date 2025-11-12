@@ -87,11 +87,11 @@ struct ShopPanel: View {
                                                 .font(.custom("PressStart2P-Regular", size: 10))
                                                 .foregroundStyle(.white)
                                         }
-                                                                            }
+                                    }
                                 }
                                 // Glow ring when equipped
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
+                                    Rectangle()
                                         .stroke((isSkin && equipped) ? Color.yellow.opacity(0.95) : .clear,
                                                 lineWidth: (isSkin && equipped) ? 4 : 0)
                                         .shadow(color: (isSkin && equipped) ? Color.yellow.opacity(0.7) : .clear,
