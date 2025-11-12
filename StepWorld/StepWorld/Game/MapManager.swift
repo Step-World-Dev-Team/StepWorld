@@ -83,12 +83,13 @@ final class MapManager: ObservableObject {
         let buildings = payload.compactMap { dict -> Building? in
             guard
                 let type = dict["type"] as? String,
-                let plot = dict["plot"] as? String
+                let plot = dict["plot"] as? String,
+                let skin = dict["skin"] as? String
             else { return nil }
             let x = (dict["x"] as? CGFloat).map(Double.init) ?? (dict["x"] as? Double) ?? 0
             let y = (dict["y"] as? CGFloat).map(Double.init) ?? (dict["y"] as? Double) ?? 0
             let level = dict["level"] as? Int
-            return Building(type: type, plot: plot, x: x, y: y, level: level)
+            return Building(type: type, plot: plot, x: x, y: y, level: level, skin: skin)
         }
         print("Attempting save uid=\(uid) payload=\(payload)")
         Task {
