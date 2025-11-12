@@ -10,6 +10,8 @@ struct ShopPanel: View {
     let items: [ShopItem]
     var onClose: () -> Void
     var onBuy: (ShopItem) -> Void
+    
+    @StateObject private var vm = ShopPanelViewModel()
 
     private let cols = Array(repeating: GridItem(.fixed(90), spacing: 8), count: 3)
 
@@ -75,8 +77,33 @@ struct ShopPanel: View {
                     .padding(.vertical, 8)
                 }
                 .padding(.top,120)
+                
+                ZStack {
+                                Image("clear_button")
+                                    .resizable()
+                                    .interpolation(.none)
+                                    .scaledToFit()
+                                    .frame(height: 60)  // adjust to your art
+
+                                HStack(spacing: 8) {
+                                    Image("Coin") // optional icon
+                                        .resizable()
+                                        .interpolation(.none)
+                                        .scaledToFit()
+                                        .frame(width: 22, height: 22)
+
+                                    Text(vm.balance.map { $0.formatted() } ?? "--")
+                                        .font(.custom("PressStart2P-Regular", size: 14))
+                                        .foregroundStyle(.black)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 8)
+                            .allowsHitTesting(false)
+                
             }
-            .padding(.vertical, 8)
+            .padding(.bottom, 50)
+            .task { await vm.loadBalance() }
         }
         .frame(maxWidth: 360, maxHeight: 480)
         .background(Color.clear)
