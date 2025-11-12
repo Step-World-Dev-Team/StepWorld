@@ -206,6 +206,11 @@ final class MapManager: ObservableObject {
         scene.equipSkin(baseType: baseType, skin: skin)
         equipped[baseType] = skin
     }
+    
+    func equipDefault(baseType: String) {
+        scene.clearEquippedSkin(baseType: baseType)
+        equipped.removeValue(forKey: baseType)
+    }
     //New Code
     
     

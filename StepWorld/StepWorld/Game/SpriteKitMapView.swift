@@ -138,6 +138,8 @@ struct SpriteKitMapView: View {
                                     let skinEntries: [ShopItem] = [
                                         .init(type: "Barn#Blue",   price: 150, iconName: "BlueBarn_L1"),
                                         .init(type: "House#Candy", price: 150, iconName: "CandyHouse_L1"),
+                                        .init(type: "Barn#Default", price: 0,   iconName: "Barn_L1"),
+                                        .init(type: "House#Default",   price: 0, iconName: "House_L1"),
                                     ]
 
                                     return buildingItems + skinEntries
@@ -158,7 +160,9 @@ struct SpriteKitMapView: View {
                                             let skin = String(parts[1])
 
                                             // If already owned, equip; otherwise purchase+auto-equip
-                                            if map.inventory.ownedSkins.contains(item.type) {
+                                            if skin == "Default" {
+                                                map.equipDefault(baseType: baseType)
+                                            } else if map.inventory.ownedSkins.contains(item.type) {
                                                 map.equipSkin(baseType: baseType, skin: skin)
                                             } else {
                                                 Task {
@@ -179,6 +183,24 @@ struct SpriteKitMapView: View {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                         showShop = false
                                     }
+                                    
+                                },
+                                isOwned: { item in
+                                    // Only skins have "#". Decor should never be considered owned for the UI.
+                                    let parts = item.type.split(separator: "#")
+                                    guard parts.count == 2 else { return false }          // <- decor/buildings
+                                    let sku = item.type
+                                    let skin = String(parts[1])
+                                    return skin == "Default" || map.inventory.ownedSkins.contains(sku)
+                                },
+                                isEquipped: { item in
+                                    // Only skins can be equipped
+                                    let parts = item.type.split(separator: "#")
+                                    guard parts.count == 2 else { return false }          // <- key change
+                                    let base = String(parts[0])
+                                    let skin = String(parts[1])
+                                    if skin == "Default" { return map.equipped[base] == nil }
+                                    return map.equipped[base] == skin
                                 }
                             )
                             .task { await shopVM.load() }
