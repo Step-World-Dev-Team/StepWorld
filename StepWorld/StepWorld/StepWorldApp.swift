@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Firebase
+import FirebaseAuth
 
 @main
 struct StepWorldApp: App {
@@ -14,15 +15,24 @@ struct StepWorldApp: App {
     @StateObject private var steps = StepManager()
     @StateObject private var map = MapManager()
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    @Environment(\.scenePhase) private var scenePhase
     
     var body: some Scene {
         WindowGroup {
-            
-
-            SignInView()
+            RootView()
                 .environmentObject(steps)
                 .environmentObject(map)
-            
+        }
+        .onChange(of: scenePhase) {
+            guard scenePhase == .active else { return }
+            Task { @MainActor in
+                if let uid = Auth.auth().currentUser?.uid {
+                    steps.userId = uid
+                    map.userId   = uid
+                    steps.syncToday()
+                    await map.refreshNow()
+                }
+            }
         }
     }
     

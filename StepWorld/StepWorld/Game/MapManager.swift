@@ -12,27 +12,20 @@ import Combine
 @MainActor
 final class MapManager: ObservableObject {
     var userId: String?
+    @Published var balance: Int = 0
+    @Published var todaySteps: Int = 0
     
-    //private var scene: GameScene?
-    //private var skView: SKView?
-    let scene: GameScene
+    var scene: GameScene
     private var pendingSave: DispatchWorkItem?
    
-    /*
-    init(skView: SKView) {
-        self.skView = skView
-        setupScene()
-        scene?.onMapChanged = { [weak self] in
-            print("onMapChanged attempted")
-            self?.scheduleSave() }
-        loadFromFirestoreIfAvailable()
-    }
-     */
-
     init() {
         // one scene for the whole app session
                 self.scene = GameScene(size: UIScreen.main.bounds.size)
                 self.scene.scaleMode = .aspectFill
+            
+        if let uid = Auth.auth().currentUser?.uid {
+            self.userId = uid
+        }
 
                 // wire the trigger once
                 self.scene.onMapChanged = { [weak self] in
@@ -49,38 +42,64 @@ final class MapManager: ObservableObject {
     private func scheduleSave() {
         print("made it to scheduleSave")
         pendingSave?.cancel()
-        let job = DispatchWorkItem { [weak self] in self?.saveMapForCurrentUser() }
+        
+        let job = DispatchWorkItem { [weak self] in
+            guard let self = self else {return}
+            Task {
+                do {try await self.saveMapForCurrentUser()
+                    await self.refreshStepsAndBalance()
+                } catch {
+                    print("Save failed:", error.localizedDescription)
+                }
+            }
+        }
         pendingSave = job
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: job)
     }
     
-    // actual save
-    private func saveMapForCurrentUser() {
-       //guard let scene = scene else { return }
+    private func saveMapForCurrentUser() async throws {
         guard let uid = Auth.auth().currentUser?.uid else {
             print("No signed-in user; skipping save.")
             return
         }
+
+        let buildings = scene.getBuildingModels() // includes type/plot/x/y/level
+        try await UserManager.shared.saveMapBuildings(userId: uid, buildings: buildings)
         
-        let payload = scene.getBuildingData()
-        let buildings = payload.compactMap { dict -> Building? in
-            guard
-                let type = dict["type"] as? String,
-                let plot = dict["plot"] as? String
-            else { return nil }
-            let x = (dict["x"] as? CGFloat).map(Double.init) ?? (dict["x"] as? Double) ?? 0
-            let y = (dict["y"] as? CGFloat).map(Double.init) ?? (dict["y"] as? Double) ?? 0
-            let level = dict["level"] as? Int
-            return Building(type: type, plot: plot, x: x, y: y, level: level)
-        }
-        print("Attempting save uid=\(uid) payload=\(payload)")
-        Task {
+
+        let decor = scene.currentDecorModels()
+        try await UserManager.shared.saveDecor(userId: uid, items: decor)
+        
+        print("Saved \(buildings.count) buildings & \(decor.count) decor to Firestore for \(uid).")
+    }
+    
+    // refresh helper (steps + balance), called after save completes
+    @MainActor
+    private func refreshStepsAndBalance(date: Date = Date()) async {
+        guard let uid = scene.userId ?? Auth.auth().currentUser?.uid else { return }
+        
+        let currentBalance = self.balance
+
+        async let steps: Int = {
             do {
-                try await UserManager.shared.saveMapBuildings(userId: uid, buildings: buildings)
-                print("Saved \(payload.count) buildings to Firestore for \(uid).")
-            } catch {
-                print("saveMapBuildings failed: \(error)")
-            }
+                if let m = try await UserManager.shared.getDailyMetrics(userId: uid, date: date) {
+                    return m.stepCount
+                } else { return 0 }
+            } catch { return 0 }
+        }()
+
+        async let coins: Int = {
+                do {
+                    return try await UserManager.shared.getBalance(userId: uid)
+                } catch {
+                    return currentBalance // ✅ safe captured value
+                }
+            }()
+
+        let (s, b) = await (steps, coins)
+        await MainActor.run {
+            self.todaySteps = s
+            self.balance = b
         }
     }
     
@@ -101,145 +120,106 @@ final class MapManager: ObservableObject {
                 }
                 // We're on @MainActor already (MapManager is @MainActor), so just call it.
                 self.loadBuildingData(buildings)
-                print("✅ Loaded \(buildings.count) buildings from backend.")
+                
+                let decor = try await UserManager.shared.fetchDecor(userId: uid)
+                guard !decor.isEmpty else {
+                    print("No saved decore yet.")
+                    return
+                }
+                self.scene.applyLoadedDecor(decor)
+                
+                print("✅ Loaded \(buildings.count) buildings & \(decor.count) decor from backend.")
             } catch {
                 let ns = error as NSError
                 print("❌ fetchMapBuildings failed:", ns.localizedDescription, ns.domain, ns.code, ns.userInfo)
             }
         }
     }
+    
+    @MainActor
+    func resetScene() {
+        print("🗑️ Resetting GameScene for new session")
+        let newScene = GameScene(size: UIScreen.main.bounds.size)
+        newScene.scaleMode = .aspectFill
 
-    
-    /*
-    // load on startup
-    private func loadFromFirestoreIfAvailable() {
-        guard let uid = Auth.auth().currentUser?.uid else {
-            print("ℹ️ No signed-in user; skipping load.")
-            return
+        // rewire callback
+        newScene.onMapChanged = { [weak self] in
+            self?.scheduleSave()
         }
-        Task {
-            do {
-                let data = try await UserManager.shared.fetchMapBuildings(userId: uid)
-                guard !data.isEmpty else {
-                    print("ℹ️ No saved buildings yet."); return
-                }
-                DispatchQueue.main.async { [weak self] in
-                    self?.loadBuildingData(data)
-                }
-            } catch {
-                print("❌ fetchMapBuildings failed: \(error)")
-            }
-        }
-    }
-     */
-    
-    // MARK: - Apply buildings to the scene (typed)
-    func loadBuildingData(_ buildings: [Building]) {
-        for b in buildings {
-            let sprite = b.makeSprite()
-            sprite.setScale(0.4)
-            scene.addBuilding(sprite)
-        }
+
+        // assign and keep reference
+        self.scene = newScene
     }
     
-    // TODO: Bring these back
-    /*
-    func loadBuildingData(_ data: [[String: Any]]) {
-            for item in data {
-                guard let type = item["type"] as? String else { continue }
-                let x = (item["x"] as? CGFloat) ?? .zero
-                let y = (item["y"] as? CGFloat) ?? .zero
+    // MARK: Refresh Functions
+    // function to refresh at any point in time (public)
+    func refreshNow(date: Date = Date()) async {
+            guard let uid = scene.userId ?? Auth.auth().currentUser?.uid else { return }
 
-                let sprite: SKSpriteNode = UIImage(named: type) != nil
-                ? SKSpriteNode(imageNamed: type)
-                : SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
+            // ⬅️ capture while on MainActor
+            let currentBalance = self.balance
 
-                if sprite.userData == nil { sprite.userData = [:] }
-                sprite.userData?["type"] = type
-                sprite.position = CGPoint(x: x, y: y)
-                sprite.name = "building"
-                sprite.zPosition = 1
-                sprite.setScale(0.4)
+            async let steps: Int = {
+                do {
+                    if let m = try await UserManager.shared.getDailyMetrics(userId: uid, date: date) {
+                        return m.stepCount
+                    } else { return 0 }
+                } catch { return 0 }
+            }()
 
-                scene.addBuilding(sprite)
-            }
-            print("✅ Loaded \(data.count) buildings from backend.")
+            async let coins: Int = {
+                do { return try await UserManager.shared.getBalance(userId: uid) }
+                catch { return currentBalance }   // ⬅️ use snapshot
+            }()
+
+            let (s, b) = await (steps, coins)
+            self.todaySteps = s
+            self.balance = b
+        print("ATTEMPTED REFRESH-NOW")
         }
-     */
-    
-   /*
-    // MARK: - Setup Game Scene
-    private func setupScene() {
-        let scene = GameScene(size: UIScreen.main.bounds.size)
-        scene.scaleMode = .aspectFill
-        skView?.presentScene(scene)
-        self.scene = scene
-        print("✅ MapManager initialized and GameScene presented.")
+    // MARK: - Client Side inventory + purchase/equip
+    //New Code
+    struct Inventory {
+        var ownedSkins: Set<String> = []         // "Barn#Blue", "House#Candy"
     }
-    
-    // MARK: - Save Building Data
-    func saveBuildingData() {
-        guard let scene = scene else {
-            print("⚠️ GameScene not initialized.")
-            return
-        }
-        
-        let buildingsJSON = scene.getBuildingData()
-        print("📦 Collected \(buildingsJSON.count) buildings for saving.")
-        
+    @Published var inventory = Inventory()
+    @Published var equipped: [String:String] = [:]  // ["Barn":"Blue", "House":"Candy"]
+
+    func purchaseSkin(baseType: String, skin: String, price: Int, userId: String) async {
+        let key = "\(baseType)#\(skin)"
+        guard !inventory.ownedSkins.contains(key) else { return }
         do {
-            let jsonData = try JSONSerialization.data(withJSONObject: buildingsJSON, options: .prettyPrinted)
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
-                print("🗂️ Building JSON:\n\(jsonString)")
-            }
-            // TODO: upload jsonData to your backend here
+            // You can keep this spend locally for now; or switch to purchaseProduct if your backend has a SKU.
+            _ = try await UserManager.shared.spend(userId: userId, amount: price)
+            inventory.ownedSkins.insert(key)
+            scene.unlockSkin(baseType: baseType, skin: skin)
+            equipped[baseType] = skin
+            print("✅ Purchased skin \(key)")
         } catch {
-            print("❌ Failed to encode building data: \(error)")
+            print("❌ Purchase skin failed: \(error.localizedDescription)")
         }
-        scheduleSave()
+    }
+
+    func equipSkin(baseType: String, skin: String) {
+        let key = "\(baseType)#\(skin)"
+        guard inventory.ownedSkins.contains(key) else { return }
+        scene.equipSkin(baseType: baseType, skin: skin)
+        equipped[baseType] = skin
     }
     
-    // MARK: - Load Buildings from Backend
-    func loadBuildingData(_ data: [[String: Any]]) {
-        guard let scene = scene else { return }
-        
-        for item in data {
-            guard
-                let type = item["type"] as? String
-            else { continue }
-            
-            // Accept CGFloat OR Double/NSNumber (Firestore)
-            let xNum: NSNumber? = (item["x"] as? NSNumber)
-            let yNum: NSNumber? = (item["y"] as? NSNumber)
-            let x: CGFloat
-            let y: CGFloat
-            if let xn = xNum, let yn = yNum {
-                x = CGFloat(xn.doubleValue)
-                y = CGFloat(yn.doubleValue)
-            } else if let xcg = item["x"] as? CGFloat, let ycg = item["y"] as? CGFloat {
-                x = xcg; y = ycg
-            } else {
-                continue
-            }
-            
-            let sprite: SKSpriteNode
-            if UIImage(named: type) != nil {
-                sprite = SKSpriteNode(imageNamed: type)
-            } else {
-                sprite = SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
-            }
-            if sprite.userData == nil { sprite.userData = [:] }
-            sprite.userData?["type"] = type
-            
-            sprite.position = CGPoint(x: x, y: y)
-            sprite.name = "building"
-            sprite.zPosition = 1
-            sprite.setScale(0.4)
-            
-            scene.addBuilding(sprite)
-        }
-        
-        print("✅ Loaded \(data.count) buildings from backend.")
+    func equipDefault(baseType: String) {
+        scene.clearEquippedSkin(baseType: baseType)
+        equipped.removeValue(forKey: baseType)
     }
-    */
+    //New Code
+    
+    
+    // MARK: - Apply buildings to the scene
+    func loadBuildingData(_ buildings: [Building]) {
+        // ✅ Delegate to GameScene’s built-in loader
+        scene.applyLoadedBuildings(buildings)
+
+        print("✅ Loaded \(buildings.count) buildings into GameScene via applyLoadedBuildings().")
+    }
+    
 }
