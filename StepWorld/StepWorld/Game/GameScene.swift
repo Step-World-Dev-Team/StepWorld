@@ -6,6 +6,7 @@
 
 import SpriteKit
 import UIKit
+import FirebaseAuth
 import AVFoundation
 
 /// Requires TMXPlotLoader.swift in the same target (with top-level TMXMapInfo & PlotObject).
@@ -39,8 +40,9 @@ final class GameScene: SKScene {
     // Building scale: House & Barn at 2× prior (0.8 vs 0.4)
     private let baseBuildingScale: CGFloat = 0.6
     private let buildingScaleOverrides: [String: CGFloat] = [
-        "House": 0.8,
-        "Barn":  1
+        "House": 1,
+        "Barn":  1,
+        "Farm": 1
     ]
 
     // MARK: - Data
@@ -52,6 +54,7 @@ final class GameScene: SKScene {
     private let cameraNode = SKCameraNode()
     private var background: SKSpriteNode!
     private var mapInfo: TMXMapInfo?
+    private var didSetup = false
 
     // MARK: - Plots
     private var plotNodes: [SKShapeNode] = []
@@ -62,7 +65,7 @@ final class GameScene: SKScene {
 
     // MARK: - Build menu
     private var buildMenu: SKNode?
-    private let availableBuildings = ["Barn", "House"]
+    private let availableBuildings = ["Barn", "House", "Farm"]
     private let panelSprite  = "build_menu_background"
     private let buttonSprite = "clear_button"
     private let buttonSpriteCancel = "cancel_button"
@@ -74,16 +77,52 @@ final class GameScene: SKScene {
     private var panVelocity = CGPoint.zero
     private var lastUpdateTime: TimeInterval = 0
     
+    //decorations
+    private var decorManager: DecorManager!
+    
+    //Allows decor to hover on map while finding place to place it
+    @available(iOS 13.4, *)
+    private var hoverGR: UIHoverGestureRecognizer?
+
+    
     // MARK: - Database
     var onMapChanged: (() -> Void)?
-    var userId: String!
+    var userId: String?
+    
+    // MARK: - Skins
+    var blueBarnActive = false
+    var candyHouseActive = false
+    
+    //New code
+    // MARK: - Skins (ownership + currently equipped per base type)
+    private(set) var ownedSkins = Set<String>()               // e.g. "Barn#Blue", "House#Candy"
+    private var equippedSkinForType: [String: String] = [:]   // ["Barn":"Blue", "House":"Candy"]
+
+    func unlockSkin(baseType: String, skin: String) {
+        ownedSkins.insert("\(baseType)#\(skin)")
+        equippedSkinForType[baseType] = skin  // auto-equip on purchase
+    }
+
+    func equipSkin(baseType: String, skin: String) {
+        guard ownedSkins.contains("\(baseType)#\(skin)") else { return }
+        equippedSkinForType[baseType] = skin
+    }
+    //New Code
     
     private func triggerMapChanged() {
         onMapChanged?()
     }
+    //requires two fingers to drag map so decorations can be moved
+    private func updatePanBehaviorForPlacement() {
+        if decorManager?.isPlacing == true {
+            panGR?.minimumNumberOfTouches = 2   // two-finger pan while placing
+        } else {
+            panGR?.minimumNumberOfTouches = 1   // normal map pan
+        }
+    }
+
 
     // MARK: - Sound
-    
     private var bgm: SKAudioNode?
 
     private func configureAudioSession() {
@@ -125,6 +164,11 @@ final class GameScene: SKScene {
     
     // MARK: - Scene lifecycle
     override func didMove(to view: SKView) {
+        // Run setup only once per scene instance
+        // fix for crashing on signup
+        guard !didSetup else { return }
+        didSetup = true
+        
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
@@ -146,13 +190,15 @@ final class GameScene: SKScene {
         bgm = music
         print("🎵 Music node added to scene: \(music)")
         
-        // Build plots from TMX; fallback if none so you always see something
-        let hadPlots = buildPlotsFromTMX()
-        if !hadPlots { buildDebugPlots() }
+
+        decorManager = DecorManager(
+            scene: self,
+            cameraNode: cameraNode,
+            plotsProvider: { [weak self] in self?.plotNodes ?? [] })
 
         // Camera
-        camera = cameraNode
-        addChild(cameraNode)
+        if camera == nil { camera = cameraNode }
+        if cameraNode.parent == nil { addChild(cameraNode) }
         cameraNode.setScale(initialZoom)
         rescaleWorldBillboardsForCamera()
         centerCamera()
@@ -162,25 +208,41 @@ final class GameScene: SKScene {
         setupHUD()
 
         // Gestures
-        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinchGesture(_:)))
-        pinch.cancelsTouchesInView = false
-        pinch.delaysTouchesBegan = false
-        pinch.delaysTouchesEnded = false
-        view.addGestureRecognizer(pinch); pinchGR = pinch
-
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(panGesture(_:)))
-        pan.cancelsTouchesInView = false
-        pan.delaysTouchesBegan = false
-        pan.delaysTouchesEnded = false
-        view.addGestureRecognizer(pan); panGR = pan
-
-        print("✅ GameScene ready. plots=\(plotNodes.count) zoom=\(cameraNode.xScale)")
-    }
-
-    deinit {
-        view?.gestureRecognizers?.forEach { gr in
-            if gr === pinchGR || gr === panGR { view?.removeGestureRecognizer(gr) }
+        if pinchGR == nil {
+            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinchGesture(_:)))
+            pinch.cancelsTouchesInView = false
+            pinch.delaysTouchesBegan = false
+            pinch.delaysTouchesEnded = false
+            view.addGestureRecognizer(pinch); pinchGR = pinch
         }
+        
+        if panGR == nil {
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(panGesture(_:)))
+            pan.cancelsTouchesInView = false
+            pan.delaysTouchesBegan = false
+            pan.delaysTouchesEnded = false
+            view.addGestureRecognizer(pan); panGR = pan
+        }
+        
+        // Build plots from TMX; fallback if none so you always see something
+        let hadPlots = buildPlotsFromTMX()
+        if !hadPlots { buildDebugPlots() }
+        
+        print("✅ GameScene ready. plots=\(plotNodes.count) zoom=\(cameraNode.xScale)")
+        
+        //for decor hover
+        if #available(iOS 13.4, *) {
+            let hover = UIHoverGestureRecognizer(target: self, action: #selector(hoverMoved(_:)))
+            hover.cancelsTouchesInView = false
+            view.addGestureRecognizer(hover)
+            self.hoverGR = hover
+        }
+    }
+    
+    // When the scene is about to leave a view, clean up recognizers so we don't duplicate them later.
+    override func willMove(from view: SKView) {
+        if let pinch = pinchGR { view.removeGestureRecognizer(pinch); pinchGR = nil }
+        if let pan = panGR { view.removeGestureRecognizer(pan); panGR = nil }
     }
 
     // MARK: - TMX → plots
@@ -196,7 +258,7 @@ final class GameScene: SKScene {
     
     // MARK: - Plot rules
     
-    // New Code
+    
     private struct PlotRule {
         let allowed: [String]
         let maxLevel: [String: Int]
@@ -209,17 +271,17 @@ final class GameScene: SKScene {
         // "top left plot" / "plot 1" → use the actual names you see in logs
         "Plot01": PlotRule(
                     allowed: ["House"],
-                    maxLevel: ["House": 3],
+                    maxLevel: ["House": 2],
                     anchor: CGPoint(x: 0.50, y: 0.6),
                     perBuildingAnchor: [:]),
         "Plot02": PlotRule(
-            allowed: ["Barn", "House"],
-            maxLevel: ["Barn": 4, "House": 3],
+            allowed: ["Barn", "House", "Farm"],
+            maxLevel: ["Barn": 4, "House": 2, "Farm": 4],
             anchor: CGPoint(x: 0.5, y: 0.5),
             perBuildingAnchor: ["Barn": CGPoint(x: 0.55, y: 0.55)]),
         "Plot03": PlotRule(
-                    allowed: ["Barn", "House"],
-                    maxLevel: ["Barn": 4, "House": 3],
+                    allowed: ["Barn", "House", "Farm"],
+                    maxLevel: ["Barn": 4, "House": 2, "Farm": 4],
                     anchor: CGPoint(x: 0.5, y: 0.5),
                     perBuildingAnchor: ["Barn": CGPoint(x: 0.50, y: 0.55)])
         // Add more as needed...
@@ -248,7 +310,7 @@ final class GameScene: SKScene {
         return CGPoint(x: plot.position.x + local.x,
                        y: plot.position.y + local.y)
     }
-    // New Code
+    
     
 
     /// Build centered, full-size plot overlays from the TMX object layer
@@ -374,6 +436,7 @@ final class GameScene: SKScene {
     }
     // MARK: - Plot styling
     private func stylePlot(_ plot: SKShapeNode, size: CGSize) {
+        
         plot.fillColor = UIColor.white.withAlphaComponent(0.001) // invisible but hittable
         plot.strokeColor = .clear
         plot.lineWidth = 0
@@ -557,14 +620,15 @@ final class GameScene: SKScene {
         label.fontSize = 14
         label.fontColor = .white
         label.text = plotNodes.isEmpty
-            ? "⚠️ 0 plots found — check TMX layer '\(plotLayerName)'"
-            : "Plots: \(plotNodes.count)"
+        ? "⚠️ 0 plots found — check TMX layer '\(plotLayerName)'"
+        : "Plots: \(plotNodes.count)"
         label.position = CGPoint(x: size.width/2 - 10, y: size.height/2 - 10)
         hudRoot.addChild(label)
         hudLabel = label
         hudLabel?.isHidden = true
+        
+        }
 
-    }
 
     private func rescalePlotNameLabelsForCamera() {
         let inv = 1.0 / cameraNode.xScale
@@ -658,7 +722,19 @@ final class GameScene: SKScene {
             panVelocity = .zero
         }
     }
-
+    //makes ghost follow cursor
+    @available(iOS 13.4, *)
+    @objc private func hoverMoved(_ sender: UIHoverGestureRecognizer) {
+        guard decorManager?.isPlacing == true, let view = self.view else { return }
+        let pView  = sender.location(in: view)
+        let pScene = convertPoint(fromView: pView)
+        switch sender.state {
+        case .began, .changed, .ended:
+            decorManager?.movePreview(to: pScene)
+        default:
+            break
+        }
+    }
 
     // MARK: - Camera helpers
     private func centerCamera() { cameraNode.position = .zero }
@@ -695,64 +771,160 @@ final class GameScene: SKScene {
     }
     private func attachForSaleSign(to plot: SKShapeNode, plotSize: CGSize) {
         // Avoid duplicates
-        if plot.childNode(withName: "forSaleSign") != nil { return }
+           if plot.childNode(withName: "forSaleSign") != nil { return }
 
-        // Root node for easy cleanup
-        let signNode = SKNode()
-        signNode.name = "forSaleSign"
-        signNode.zPosition = 30
+           // Create sprite from your asset
+           let sign = SKSpriteNode(imageNamed: "ForSale")
+           sign.name = "forSaleSign"
+           sign.zPosition = 30
 
-        // --- Post ---
-        let postWidth: CGFloat = 4
-        let postHeight: CGFloat = 20
-        let post = SKShapeNode(rectOf: CGSize(width: postWidth, height: postHeight), cornerRadius: 1.5)
-        post.fillColor = .brown
-        post.strokeColor = .clear
-        post.position = CGPoint(x: 0, y: postHeight / 2)
-        signNode.addChild(post)
+           // --- Size ---
+           // The PNG is large; scale it down here
+           sign.size = CGSize(width: 40, height: 30)  // tweak these until it looks perfect
 
-        // --- Signboard ---
-        let boardSize = CGSize(width: 60, height: 20)
-        let board = SKShapeNode(rectOf: boardSize, cornerRadius: 3)
-        board.fillColor = UIColor.white
-        board.strokeColor = UIColor.darkGray
-        board.lineWidth = 1.2
-        board.position = CGPoint(x: 0, y: postHeight)
-        signNode.addChild(board)
+           // --- Position above plot ---
+           let yAbove = plotSize.height * 0.5 + 30
+           sign.position = CGPoint(x: 0, y: yAbove)
 
-        // --- Text ---
-        let label = SKLabelNode(text: "For Sale")
-        label.fontName = "PressStart2P-Regular"
-        label.fontSize = 6
-        label.fontColor = .red
-        label.verticalAlignmentMode = .center
-        label.zPosition = 1
-        board.addChild(label)
+           // --- Stay same size on screen ---
+           // Apply inverse camera scale initially so it cancels zoom
+           sign.setScale(1.0 / cameraNode.xScale)
 
-        // --- Position sign above plot ---
-        let yAbove = plotSize.height * 0.5 + 10
-        signNode.position = CGPoint(x: 0, y: yAbove)
-        signNode.setScale(1.0 / cameraNode.xScale) // stay same size on screen
-        plot.addChild(signNode)
+           // Save its base size for later updates
+           if sign.userData == nil { sign.userData = [:] }
+           sign.userData?["baseSize"] = sign.size
 
-        // --- Optional gentle animation ---
-        let up = SKAction.moveBy(x: 0, y: 2, duration: 0.8)
-        up.timingMode = .easeInEaseOut
-        let down = up.reversed()
-        signNode.run(.repeatForever(.sequence([up, down])))
-    }
+           plot.addChild(sign)
+
+           // --- Optional gentle bobbing animation ---
+           let up = SKAction.moveBy(x: 0, y: 2, duration: 0.8)
+           up.timingMode = .easeInEaseOut
+           let down = up.reversed()
+           sign.run(.repeatForever(.sequence([up, down])))
+       }
+    
     private func rescaleWorldBillboardsForCamera() {
         let inv = 1.0 / cameraNode.xScale
-        for plot in plotNodes {
-            for child in plot.children where
-                child.name == "plotNameLabel" || child.name == "forSaleSign" {
-                child.setScale(inv)
+           for plot in plotNodes {
+               for child in plot.children {
+                   switch child.name {
+                   case "plotNameLabel":
+                       child.setScale(inv) // labels stay same size on screen
+                   case "forSaleSign":
+                       if let sign = child as? SKSpriteNode {
+                           // Reset its scale so it cancels zoom
+                           sign.setScale(1.0 / cameraNode.xScale)
+                           // Ensure size remains consistent
+                           if let baseSize = sign.userData?["baseSize"] as? CGSize {
+                               sign.size = baseSize
+                           }
+                       }
+                   default:
+                       break
+                   }
+               }
+           }
+       }
+    public func attemptPurchaseAndStartPlacement(type: String, price: Int, userId: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let (newBal, _) = try await UserManager.shared.purchaseProduct(userId: userId, productId: type, quantity: 1)
+                print("🛒 Bought \(type). New balance: \(newBal)")
+                self.decorManager.startPlacement(type: type)    // ghost shows; user clicks to place
+                self.decorManager.movePreview(to: self.cameraNode.position)
+                self.updatePanBehaviorForPlacement()
+            } catch {
+                print("❌ Purchase failed: \(error.localizedDescription)")
+                // Optionally: show a HUD toast in the scene
             }
         }
     }
 
 
-    // MARK: - Touch → plot select → build menu
+    // MARK: - Touch input
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // If we're placing decor, a simple click should move the ghost to the cursor immediately.
+        if let t = touches.first, decorManager?.isPlacing == true {
+            decorManager?.movePreview(to: t.location(in: self))
+        }
+        super.touchesBegan(touches, with: event)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Optional: keep this if you still want drag-to-aim during placement.
+        if let t = touches.first, decorManager?.isPlacing == true {
+            decorManager?.movePreview(to: t.location(in: self))
+        }
+        super.touchesMoved(touches, with: event)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let t = touches.first else { return }
+        let loc = t.location(in: self)
+        let tapped = nodes(at: loc)
+        let top = atPoint(loc)
+        
+        
+
+        //If currently placing décor: single tap = try to place here
+        if decorManager?.isPlacing == true {
+            if decorManager?.confirmPlacement(at: loc) == true {
+                updatePanBehaviorForPlacement()
+                triggerMapChanged()
+            }
+                return
+        }
+            if let menu = buildMenu, top.inParentHierarchy(menu) {
+                    if handleManageMenuTap(tapped) || handleBuildMenuTap(tapped) { return }
+                    return // swallow taps on menu background — don’t open build menu
+                }
+        // 🚫 Ignore taps on the "For Sale" sign (and anything inside it)
+        var s: SKNode? = top
+        while let cur = s, cur.name != "forSaleSign" { s = cur.parent }
+        if s?.name == "forSaleSign" { return }
+        
+        // Only react if the TOPMOST hit is a plot (or inside one)
+            var n: SKNode? = top
+            while let cur = n, cur.name != "plot" { n = cur.parent }
+            if let plot = n as? SKShapeNode {
+                for p in plotNodes { setPlotSelected(p, selected: false) }
+                setPlotSelected(plot, selected: true)
+                selectedPlot = plot
+                if isPlotOccupied(plot) {
+                    if let bld = building(on: plot) {
+                        showManageMenu(for: bld)
+                    }
+                } else {
+                    showBuildMenu()
+                }
+
+                return
+            }
+
+            // Fallback — tapped empty space
+            dismissBuildMenu()
+        }
+
+       /* // E) Plot selection → Build/Manage
+        if let plot = tapped.first(where: { $0.name == "plot" }) as? SKShapeNode {
+            for p in plotNodes { setPlotSelected(p, selected: false) }
+            setPlotSelected(plot, selected: true)
+            selectedPlot = plot
+            if isPlotOccupied(plot) {
+                showManageMenu(for: plot)
+            } else {
+                showBuildMenu() }
+            return
+        }
+
+        // F) Fallback
+        dismissBuildMenu()
+    } */
+
+
+    /*// MARK: - Touch → plot select → build menu
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let t = touches.first else { return }
         let loc = t.location(in: self)
@@ -780,7 +952,7 @@ final class GameScene: SKScene {
 
         dismissBuildMenu()
     }
-
+*/
 
     // MARK: - Build menu (fixed layout: no overlap)
     
@@ -793,7 +965,7 @@ final class GameScene: SKScene {
         
         run(.playSoundFileNamed("pop", waitForCompletion: false))
         
-        //New code
+        
         guard let plot = selectedPlot else { return }
 
         // Figure out which buildings are allowed on this plot
@@ -804,7 +976,7 @@ final class GameScene: SKScene {
             print("No buildings allowed on \(plotName)")
             return
         }
-        //New code
+    
         
         
         dismissBuildMenu()
@@ -922,7 +1094,7 @@ final class GameScene: SKScene {
                         // Run async spending logic in a Task
                         Task { [weak self] in
                             guard let self = self else { return }
-                            guard let uid = self.userId else {
+                            guard let uid = self.userId ?? Auth.auth().currentUser?.uid else {
                                 print("No userId set on GameScene")
                                 return
                             }
@@ -938,7 +1110,7 @@ final class GameScene: SKScene {
                                 self.triggerMapChanged()
                                 
                                 //Play sound
-                                playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
+                                self.playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
 
                             } catch {
                                 print("Could not build \(asset): \(error.localizedDescription)")
@@ -998,7 +1170,7 @@ final class GameScene: SKScene {
         return false
     }
     
-    private func showManageMenu(for plot: SKSpriteNode) {
+    private func showManageMenu(for building: SKSpriteNode) {
         
         run(.playSoundFileNamed("pop", waitForCompletion: false))
         
@@ -1059,22 +1231,48 @@ final class GameScene: SKScene {
     private func placeBuildingOnSelectedPlot(assetName: String) {
         guard let plot = selectedPlot else { return }
         
-        //New Code
+       
         let plotName = (plot.userData?["plotName"] as? String) ?? ""
         if let rule = plotRules[plotName], !rule.allowed.contains(assetName) {
             print("🚫 \(assetName) is not allowed on \(plotName)")
             // Optional: flash the plot or show a quick HUD tooltip
             return
         }
-        //New Code
+    
         
         //let pos = plot.position
         let pos = positionFor(assetName: assetName, on: plot)
         
         // Create the sprite first
+        
+        /* Old Code
         let level = 1
-        let fullName = "\(assetName)_L\(level)"   // e.g. "Barn_L1"
-
+        let fullName: String
+        switch assetName {
+        case "Barn" where blueBarnActive:
+            fullName = "BlueBarn_L\(level)"
+        case "House" where candyHouseActive:
+            fullName = "CandyHouse_L\(level)"
+        default:
+            fullName = "\(assetName)_L\(level)"
+        }
+        */
+        //New Code
+        let baseType = assetName
+        let skin = equippedSkinForType[baseType]
+        let level = 1
+        
+        let resolvedType: String
+        switch (baseType, skin) {
+        case ("Barn",  "Blue"):  resolvedType = "BlueBarn"
+        case ("House", "Candy"): resolvedType = "CandyHouse"
+        default:                 resolvedType = baseType
+        }
+        
+        let fullName = "\(resolvedType)_L\(level)"
+        //New Code
+        
+        
         let sprite: SKSpriteNode
 
         if UIImage(named: fullName) != nil {
@@ -1085,16 +1283,16 @@ final class GameScene: SKScene {
         }
         
 
-
         
         // ✅ Now you can safely assign userData
         if sprite.userData == nil { sprite.userData = [:] }
         sprite.userData?["type"] = assetName     // "Barn" or "House"
         sprite.userData?["level"] = level        // start at level 1
         sprite.userData?["plot"] = (plot.userData?["plotName"] as? String) ?? "UnknownPlot"
+        if let skin { sprite.userData?["skin"] = skin }   // ✅ persist which skin was used (New Code)
 
         sprite.position = pos
-        sprite.zPosition = 8
+        sprite.zPosition = 4
 
         let scale = buildingScaleOverrides[assetName] ?? baseBuildingScale
         sprite.setScale(scale)
@@ -1125,19 +1323,27 @@ final class GameScene: SKScene {
         let type = (building.userData?["type"] as? String) ?? "Building"
         let currentLevel = (building.userData?["level"] as? Int) ?? 1
         let nextLevel = currentLevel + 1
+        //New Code
+        let skin = (building.userData?["skin"] as? String)
+        let resolvedType: String
+        switch (type, skin) {
+        case ("Barn",  "Blue"):  resolvedType = "BlueBarn"
+        case ("House", "Candy"): resolvedType = "CandyHouse"
+        default:                 resolvedType = type
+        }
+        let newTextureName = "\(resolvedType)_L\(nextLevel)"
         
-        // New Code
         let plotName = (plot.userData?["plotName"] as? String) ?? ""
         let maxLevel = plotRules[plotName]?.maxLevel[type] ?? Int.max
         guard nextLevel <= maxLevel else {
             print("\(type) cannot be upgraded beyond L\(maxLevel) on \(plotName)")
             return
         }
-        // New Code
+        //New Code
         
         // Example: define upgrade cost logic
         let cost = nextLevel * 100  // cost currently set to 100 times the level of the building
-        guard let uid = self.userId else {
+        guard let uid = self.userId ?? Auth.auth().currentUser?.uid else {
             print("No userId set on GameScene");
             return
         }
@@ -1149,7 +1355,16 @@ final class GameScene: SKScene {
 
             // 🏗 Proceed with upgrade visuals and data
             
-            let newTextureName = "\(type)_L\(nextLevel)"
+            let newTextureName: String
+            switch type {
+            case "Barn" where blueBarnActive:
+                newTextureName = "BlueBarn_L\(nextLevel)"
+            case "House" where candyHouseActive:
+                newTextureName = "CandyHouse_L\(nextLevel)"
+            default:
+                newTextureName = "\(type)_L\(nextLevel)"
+            }
+            
             if let newImage = UIImage(named: newTextureName) {
                 building.texture = SKTexture(imageNamed: newTextureName)
                 building.size = building.texture!.size()
@@ -1177,7 +1392,7 @@ final class GameScene: SKScene {
         let currentLevel = (building.userData?["level"] as? Int) ?? 1
         let refundAmount = sellRefundAmount(for: currentLevel)
         
-        guard let uid = self.userId else {
+        guard let uid = self.userId ?? Auth.auth().currentUser?.uid else {
             print("No userId set on GameScene")
             return
         }
@@ -1217,11 +1432,14 @@ final class GameScene: SKScene {
         return buildings.map { node in
             let type = (node.userData?["type"] as? String) ?? "Unknown"
             let plot = (node.userData?["plot"] as? String) ?? "UnknownPlot"
+            let level = (node.userData?["level"] as? Int)    ?? 1
             return [
                 "type": type,
                 "plot": plot,
                 "x": node.position.x,
-                "y": node.position.y
+                "y": node.position.y,
+                "level": (node.userData?["level"] as? Int) ?? 1,
+                "skin":  (node.userData?["skin"]  as? String) ?? "Default",
             ]
         }
     }
@@ -1263,6 +1481,8 @@ final class GameScene: SKScene {
             return 200
         case "Barn":
             return 300
+        case "Farm":
+            return 200
         default:
             return 100
         }
@@ -1271,5 +1491,15 @@ final class GameScene: SKScene {
     // separates the building name from the full asset Name
     private func baseName(from assetName: String) -> String {
         return assetName.components(separatedBy: "_").first ?? assetName
+    }
+}
+
+// MARK: Decore Bridge
+extension GameScene {
+    func currentDecorModels() -> [DecorItem] {
+        decorManager.getDecorModels()
+    }
+    func applyLoadedDecor(_ models: [DecorItem]) {
+        decorManager.applyLoadedDecor(models)
     }
 }
