@@ -195,6 +195,37 @@ final class GameScene: SKScene {
         ]))
     }
 
+    // MARK: - Earthquake (shake-only stub)
+    private var isQuakeShaking = false
+
+    func triggerEarthquakeShake(duration: TimeInterval = 3.0,
+                                amplitudeX: CGFloat = 22,
+                                amplitudeY: CGFloat = 6) {
+        guard !isQuakeShaking, let cam = camera else { return }
+        isQuakeShaking = true
+
+        playLoopingSFX("earthquake", loops: 1, volume: 0.9, clipDuration: 3.0)
+        
+        let original = cam.position
+        let step: TimeInterval = 0.03
+        let iterations = max(1, Int(duration / step))
+        var actions: [SKAction] = []
+
+        for i in 0..<iterations {
+            // ease-out falloff so it starts strong and settles
+            let t = CGFloat(i) / CGFloat(max(1, iterations - 1))
+            let falloff = 1 - t * t
+            let dx = CGFloat.random(in: -amplitudeX...amplitudeX) * falloff
+            let dy = CGFloat.random(in: -amplitudeY...amplitudeY) * falloff
+            actions.append(.move(to: CGPoint(x: original.x + dx, y: original.y + dy), duration: step))
+        }
+        actions.append(.move(to: original, duration: 0.08))
+
+        cam.run(.sequence(actions)) { [weak self] in
+            self?.isQuakeShaking = false
+        }
+    }
+
 
     
     // MARK: - Scene lifecycle
