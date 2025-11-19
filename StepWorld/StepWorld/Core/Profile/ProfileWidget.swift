@@ -1,5 +1,5 @@
 //
-//  StatWidget.swift
+//  ProfileWidget.swift
 //  StepWorld
 //
 //  Created by Andre Bortoloto Lebeis on 10/26/25.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct StatWidget: View {
+struct ProfileWidget: View {
     let backgroundImageName: String
     let title: String
     let value: String?
@@ -45,7 +45,7 @@ struct StatWidget: View {
 
 
 #Preview {
-    StatWidget(backgroundImageName: "CoinsWidget",
+    ProfileWidget(backgroundImageName: "CoinsWidget",
                title: "Coins:",
                value: "300")
 }
