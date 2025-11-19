@@ -19,6 +19,8 @@ struct SpriteKitMapView: View {
     @State private var showSettings = false
     @State private var showShop = false
     
+    @State private var changeToShow: (steps: Int, balance: Int)? = nil
+    
     @StateObject private var shopVM = ShopViewModel()
     
     private var isModalPresented: Bool { showProfile || showSettings || showShop}
@@ -105,7 +107,52 @@ struct SpriteKitMapView: View {
                     .allowsHitTesting(!isModalPresented)
                     .zIndex(1)
                 }
-            
+            if let delta = changeToShow, (delta.steps != 0 || delta.balance != 0) {
+                       // Optional: block touches behind the popup
+                       Color.black.opacity(0.001)
+                           .ignoresSafeArea()
+                           .zIndex(150)
+
+                       VStack(spacing: 14) {
+                           Text("What’s New")
+                               .font(.custom("Press Start 2P", size: 16))
+                               .padding(.top, 12)
+
+                           if delta.steps != 0 {
+                               Text("\(delta.steps >= 0 ? "▲" : "▼") Steps: \(delta.steps)")
+                                   .font(.headline)
+                           }
+                           if delta.balance != 0 {
+                               Text("\(delta.balance >= 0 ? "▲" : "▼") Balance: \(delta.balance)")
+                                   .font(.headline)
+                           }
+
+                           Button {
+                               map.markStatsAsSeenNow()
+                               withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                   changeToShow = nil
+                               }
+                           } label: {
+                               Text("Got it")
+                                   .font(.headline)
+                                   .foregroundColor(.white)
+                                   .padding(.horizontal, 18)
+                                   .padding(.vertical, 10)
+                                   .background(Color.black.opacity(0.8))
+                                   .cornerRadius(10)
+                           }
+                           .padding(.bottom, 12)
+                       }
+                       .padding()
+                       .frame(maxWidth: 320)
+                       .background(
+                           RoundedRectangle(cornerRadius: 18)
+                               .fill(Color(.systemBackground))
+                               .shadow(radius: 12)
+                       )
+                       .transition(.scale.combined(with: .opacity))
+                       .zIndex(200) // higher than modal
+                   }
             
             if isModalPresented {
                 ZStack {
@@ -242,6 +289,7 @@ struct SpriteKitMapView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.scale.combined(with: .opacity)) // keep the pop animation
                     }
+                    
                 }
                 .zIndex(100)
             }
@@ -249,6 +297,13 @@ struct SpriteKitMapView: View {
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .onReceive(NotificationCenter.default.publisher(for: .showChangePopup)) { note in
+            let s = (note.userInfo?["steps"] as? Int) ?? 0
+            let b = (note.userInfo?["balance"] as? Int) ?? 0
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                self.changeToShow = (s, b)
+            }
+        }
         .onAppear {
             if map.scene.userId == nil {
                 map.scene.userId = map.userId ?? Auth.auth().currentUser?.uid
