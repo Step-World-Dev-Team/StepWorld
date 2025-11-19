@@ -118,6 +118,21 @@ extension UserManager {
     
     // Credit delta steps and upsert today's daily_metrics (atomic)
     func creditStepsAndSyncDaily(userId: String, date: Date, newStepCount: Int) async throws -> (delta: Int, balance: Int) {
+        // 1) Read user difficulty (Firestore → local → default)
+            let userDifficulty =
+                (try? await UserManager.shared.getDifficulty(userId: userId)) ??
+                UserDefaults.standard.string(forKey: "difficulty_local_choice.\(userId)") ??
+                "medium"
+
+            // 2) Map difficulty to a step→coin rate (Hard = fewer coins per step)
+            let rate: Double
+            switch userDifficulty {
+            case "easy":   rate = 1.0
+            case "medium": rate = 0.75
+            case "hard":   rate = 0.5
+            default:       rate = 0.75
+            }
+
         let fs = Firestore.firestore()
         let dateId = Self.dateId(for: date)
         let userRef = userDocument(userId)
@@ -141,6 +156,9 @@ extension UserManager {
                     }
                     let delta = max(0, newStepCount - prevSteps)
                     
+                    // Convert steps → coins with difficulty rate
+                    let coinsEarned = Int(Double(delta) * rate)
+                    
                     // Update/Insert daily metrics
                     let now = Date()
                     if dailySnap?.exists == true {
@@ -156,8 +174,19 @@ extension UserManager {
                             "updated_at": now
                         ], forDocument: dailyRef, merge: true)
                     }
+    // Add coins (only if we earned any)
+    if coinsEarned > 0 {
+        balance += coinsEarned
+    if userSnap.exists {
+        txn.updateData(["balance": balance], forDocument: userRef)
+    } else {
+        txn.setData([
+            "user_id": userId,
+            "balance": balance], forDocument: userRef, merge: true)
+                                       }
+                                   }
                     
-                    // Increment balance by delta
+                /*    // Increment balance by delta
                     if delta > 0 {
                         balance += delta
                         if userSnap.exists {
@@ -169,7 +198,7 @@ extension UserManager {
                             ], forDocument: userRef, merge: true)
                         }
                     }
-                    
+               */
                     // Return values to completion block
                     return ["delta": delta, "balance": balance]
                     
@@ -491,7 +520,36 @@ extension UserManager {
                 ], merge: true)
         }
     }
+    
 }
+// MARK: Difficulty / Onboarding helpers
+extension UserManager {
+
+    /// Save difficulty & mark one-time onboarding complete
+    func setDifficulty(userId: String, difficulty: String) async throws {
+        try await userDocument(userId).setData([
+            "difficulty": difficulty,                    // "easy" | "medium" | "hard"
+            "has_chosen_difficulty": true,              // snake_case to match existing style
+            "onboarded_at": FieldValue.serverTimestamp()
+        ], merge: true)
+    }
+
+    /// Read difficulty if set
+    func getDifficulty(userId: String) async throws -> String? {
+        let snap = try await userDocument(userId).getDocument()
+        return (snap.data()?["difficulty"] as? String)
+    }
+
+    /// True if onboarding choice already made (accepts both snake and camel for safety)
+    func hasChosenDifficulty(userId: String) async throws -> Bool {
+        let snap = try await userDocument(userId).getDocument()
+        let data = snap.data() ?? [:]
+        if let v = data["has_chosen_difficulty"] as? Bool { return v }
+        if let v = data["hasChosenDifficulty"] as? Bool { return v }
+        return false
+    }
+}
+
 
 // TODO: Refactor encoder and decoder functions
 // MARK: Encoder-Decoder Functions
