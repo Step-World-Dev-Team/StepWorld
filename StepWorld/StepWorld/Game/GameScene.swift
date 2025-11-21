@@ -155,6 +155,27 @@ final class GameScene: SKScene {
             panGR?.minimumNumberOfTouches = 1   // normal map pan
         }
     }
+    
+    // helpers for resolving skins
+    private func resolvedSpriteBase(type: String, skin: String?) -> String {
+        switch (type, skin) {
+        case ("Barn","Blue"):  return "BlueBarn"
+        case ("House","Candy"): return "CandyHouse"
+        default: return type
+        }
+    }
+
+    private func textureName(baseType: String, skin: String?, level: Int?, damaged: Bool) -> String {
+        let base = resolvedSpriteBase(type: baseType, skin: skin)
+        if damaged {
+            // Provide broken variants in Assets, e.g. "Barn_Broken_L1"
+            if let lvl = level { return "\(base)_Broken_L\(lvl)" }
+            return "\(base)_Broken"
+        } else {
+            if let lvl = level { return "\(base)_L\(lvl)" }
+            return base
+        }
+    }
 
 
     // MARK: - Sound
@@ -1232,6 +1253,14 @@ final class GameScene: SKScene {
                 dismissBuildMenu(); return true
                  */
             }
+            if action == "manage:repair" {
+                Task { [weak self] in
+                    guard let self, let plot = self.selectedPlot, let bld = self.building(on: plot) else { return }
+                    await self.repair(building: bld)
+                }
+                dismissBuildMenu()
+                return true
+            }
         }
         return false
     }
@@ -1243,9 +1272,11 @@ final class GameScene: SKScene {
         dismissBuildMenu() // reuse the same container slot
         let menu = SKNode(); menu.zPosition = 10_001
         cameraNode.addChild(menu); buildMenu = menu
+        
+        let isDamaged = (building.userData?["damaged"] as? Bool) ?? false
 
         // Layout (reuse your sizing constants)
-        let buttons = ["Upgrade", "Sell", "Cancel"]
+        let buttons = isDamaged ? ["Repair", "Upgrade", "Sell", "Cancel"] : ["Upgrade", "Sell", "Cancel"]
         let buttonsBlockH = CGFloat(buttons.count) * (menuButtonH + menuGap) - menuGap
         let panelH = menuHeaderPad + titleToListGap + buttonsBlockH + menuFooterPad/2
         let panelSize = CGSize(width: panelWidth, height: panelH)
@@ -1280,7 +1311,10 @@ final class GameScene: SKScene {
             menu.addChild(btn)
             y -= (menuButtonH + menuGap)
         }
-
+        
+        if (isDamaged) {
+            addButton("Repair", action: "manage:repair", isCancel: true)
+        }
         addButton("Upgrade", action: "manage:upgrade")
         addButton("Sell", action: "manage:sell")
         addButton("Cancel", action: "cancel", isCancel: true)
@@ -1345,6 +1379,8 @@ final class GameScene: SKScene {
         sprite.userData?["plot"] = (plot.userData?["plotName"] as? String) ?? "UnknownPlot"
         
         if let skin { sprite.userData?["skin"] = skin }   // ✅ persist which skin was used (New Code)
+        
+        sprite.userData?["damaged"] = false
 
         sprite.position = pos
         sprite.zPosition = 4
@@ -1380,6 +1416,7 @@ final class GameScene: SKScene {
         let nextLevel = currentLevel + 1
         //New Code
         let skin = (building.userData?["skin"] as? String)
+        let isDamaged = false
         let resolvedType: String
         switch (type, skin) {
         case ("Barn",  "Blue"):  resolvedType = "BlueBarn"
@@ -1550,5 +1587,48 @@ extension GameScene {
     }
     func applyLoadedDecor(_ models: [DecorItem]) {
         decorManager.applyLoadedDecor(models)
+    }
+}
+
+//MARK: Earthquak functions
+extension GameScene {
+    func applyEarthquakeDamage() {
+        for node in buildings {
+            if node.userData == nil { node.userData = [:] }
+            node.userData?["damaged"] = true
+
+            let type = (node.userData?["type"] as? String) ?? "Building"
+            let skin = (node.userData?["skin"] as? String)
+            let level = (node.userData?["level"] as? Int)
+            let tex = textureName(baseType: type, skin: skin, level: level, damaged: true)
+            if UIImage(named: tex) != nil {
+                node.texture = SKTexture(imageNamed: tex)
+                node.size = node.texture!.size()
+            }
+        }
+        triggerMapChanged()              // will persist via MapManager
+        triggerEarthquakeShake()         // optional: shake on damage apply
+    }
+    
+    @MainActor
+    private func repair(building: SKSpriteNode) async {
+        let repairCost = 150   // tweak
+        guard let uid = self.userId ?? Auth.auth().currentUser?.uid else { return }
+        do {
+            _ = try await UserManager.shared.spend(userId: uid, amount: repairCost)
+            let type = (building.userData?["type"] as? String) ?? "Building"
+            let skin = (building.userData?["skin"] as? String)
+            let level = (building.userData?["level"] as? Int)
+            building.userData?["damaged"] = false
+            let tex = textureName(baseType: type, skin: skin, level: level, damaged: false)
+            if UIImage(named: tex) != nil {
+                building.texture = SKTexture(imageNamed: tex)
+                building.size = building.texture!.size()
+            }
+            playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
+            triggerMapChanged()
+        } catch {
+            print("Repair failed: \(error.localizedDescription)")
+        }
     }
 }

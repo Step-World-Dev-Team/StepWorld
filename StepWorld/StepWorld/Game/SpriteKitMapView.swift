@@ -270,6 +270,7 @@ struct SpriteKitMapView: View {
             }
             Task {
                 await map.refreshNow()
+                await map.checkAndApplyDailyDisaster()
             }
         }
         
