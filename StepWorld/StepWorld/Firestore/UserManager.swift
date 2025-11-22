@@ -118,95 +118,73 @@ extension UserManager {
     
     // Credit delta steps and upsert today's daily_metrics (atomic)
     func creditStepsAndSyncDaily(userId: String, date: Date, newStepCount: Int) async throws -> (delta: Int, balance: Int) {
-        // 1) Read user difficulty (Firestore → local → default)
-            let userDifficulty =
-                (try? await UserManager.shared.getDifficulty(userId: userId)) ??
-                UserDefaults.standard.string(forKey: "difficulty_local_choice.\(userId)") ??
-                "medium"
-
-            // 2) Map difficulty to a step→coin rate (Hard = fewer coins per step)
-            let rate: Double
-            switch userDifficulty {
-            case "easy":   rate = 1.0
-            case "medium": rate = 0.75
-            case "hard":   rate = 0.5
-            default:       rate = 0.75
-            }
-
         let fs = Firestore.firestore()
         let dateId = Self.dateId(for: date)
         let userRef = userDocument(userId)
         let dailyRef = dailyMetricsDocument(userId, dateId: dateId)
         
         return try await withCheckedThrowingContinuation { cont in
-            fs.runTransaction({ (txn, errorPointer) -> Any? in
-                do {
-                    // Read User
-                    let userSnap = try txn.getDocument(userRef)
-                    var balance = self.asInt(userSnap.data()?["balance"])
-                    
-                    // Read daily metrics (can be zero/not exist)
-                    let dailySnap = try? txn.getDocument(dailyRef)
-                    let prevSteps: Int
-                    // set to zero if doesn't exist
-                    if let data = dailySnap?.data(), let storedSteps = data["step_count"] {
-                        prevSteps = self.asInt(storedSteps)
-                    } else {
-                        prevSteps = 0  // explicitly state: no doc = zero previous steps
-                    }
-                    let delta = max(0, newStepCount - prevSteps)
-                    
-                    // Convert steps → coins with difficulty rate
-                    let coinsEarned = Int(Double(delta) * rate)
-                    
-                    // Update/Insert daily metrics
-                    let now = Date()
-                    if dailySnap?.exists == true {
-                        txn.updateData([
-                            "step_count": newStepCount,
-                            "updated_at": now
-                        ], forDocument: dailyRef)
-                    } else {
-                        txn.setData([
-                            "date_id": dateId,
-                            "step_count": newStepCount,
-                            "created_at": now,
-                            "updated_at": now
-                        ], forDocument: dailyRef, merge: true)
-                    }
-    // Add coins (only if we earned any)
-    if coinsEarned > 0 {
-        balance += coinsEarned
-    if userSnap.exists {
-        txn.updateData(["balance": balance], forDocument: userRef)
-    } else {
-        txn.setData([
-            "user_id": userId,
-            "balance": balance], forDocument: userRef, merge: true)
-                                       }
-                                   }
-                    
-                /*    // Increment balance by delta
-                    if delta > 0 {
-                        balance += delta
-                        if userSnap.exists {
-                            txn.updateData(["balance": balance], forDocument: userRef)
+                fs.runTransaction({ (txn, errorPointer) -> Any? in
+                    do {
+                        // --- Read user & current balance
+                        let userSnap = try txn.getDocument(userRef)
+                        var balance = self.asInt(userSnap.data()?["balance"])
+
+                        // --- Read today's metrics (may not exist)
+                        let dailySnap = try? txn.getDocument(dailyRef)
+                        let dailyData = dailySnap?.data() ?? [:]
+
+                        let prevSteps = self.asInt(dailyData["step_count"])
+                        let creditedInitial = (dailyData["credited_initial"] as? Bool) ?? false
+                        let now = Date()
+
+                        // --- Always write the latest step_count (upsert)
+                        if dailySnap?.exists == true {
+                            txn.updateData([
+                                "step_count": newStepCount,
+                                "updated_at": now
+                            ], forDocument: dailyRef)
                         } else {
                             txn.setData([
-                                "user_id": userId,
-                                "balance": balance
-                            ], forDocument: userRef, merge: true)
+                                "date_id": dateId,
+                                "step_count": newStepCount,
+                                "created_at": now,
+                                "updated_at": now,
+                                // we may set credited_initial below in the same transaction
+                            ], forDocument: dailyRef, merge: true)
                         }
+
+                        // --- Compute delta normally
+                        let baseDelta = max(0, newStepCount - prevSteps)
+                        var deltaToCredit = baseDelta
+
+                        //     non-zero steps today AND initial wasn’t credited yet, credit once now.
+                        if deltaToCredit == 0, newStepCount > 0, creditedInitial == false {
+                            deltaToCredit = newStepCount
+                            // Mark the flag so we never double-credit
+                            txn.setData(["credited_initial": true], forDocument: dailyRef, merge: true)
+                        } else if creditedInitial == false, newStepCount == 0 {
+                            // Keep it false and let later increments credit via baseDelta
+                        } else if creditedInitial == false, baseDelta > 0 {
+                            txn.setData(["credited_initial": true], forDocument: dailyRef, merge: true)
+                        }
+
+                        // --- Apply balance change
+                        if deltaToCredit > 0 {
+                            balance += deltaToCredit
+                            if userSnap.exists {
+                                txn.updateData(["balance": balance], forDocument: userRef)
+                            } else {
+                                txn.setData(["user_id": userId, "balance": balance], forDocument: userRef, merge: true)
+                            }
+                        }
+
+                        return ["delta": deltaToCredit, "balance": balance]
+                    } catch let err as NSError {
+                        errorPointer?.pointee = err
+                        return nil
                     }
-               */
-                    // Return values to completion block
-                    return ["delta": delta, "balance": balance]
-                    
-                } catch let err as NSError {
-                    errorPointer?.pointee = err
-                    return nil
-                }
-            }, completion: { result, error in
+                }, completion: { result, error in
                 if let error = error { return cont.resume(throwing: error) }
                 guard
                     let dict = result as? [String: Int],
@@ -520,36 +498,7 @@ extension UserManager {
                 ], merge: true)
         }
     }
-    
 }
-// MARK: Difficulty / Onboarding helpers
-extension UserManager {
-
-    /// Save difficulty & mark one-time onboarding complete
-    func setDifficulty(userId: String, difficulty: String) async throws {
-        try await userDocument(userId).setData([
-            "difficulty": difficulty,                    // "easy" | "medium" | "hard"
-            "has_chosen_difficulty": true,              // snake_case to match existing style
-            "onboarded_at": FieldValue.serverTimestamp()
-        ], merge: true)
-    }
-
-    /// Read difficulty if set
-    func getDifficulty(userId: String) async throws -> String? {
-        let snap = try await userDocument(userId).getDocument()
-        return (snap.data()?["difficulty"] as? String)
-    }
-
-    /// True if onboarding choice already made (accepts both snake and camel for safety)
-    func hasChosenDifficulty(userId: String) async throws -> Bool {
-        let snap = try await userDocument(userId).getDocument()
-        let data = snap.data() ?? [:]
-        if let v = data["has_chosen_difficulty"] as? Bool { return v }
-        if let v = data["hasChosenDifficulty"] as? Bool { return v }
-        return false
-    }
-}
-
 
 // TODO: Refactor encoder and decoder functions
 // MARK: Encoder-Decoder Functions
