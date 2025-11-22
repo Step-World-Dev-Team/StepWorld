@@ -129,6 +129,19 @@ final class MapManager: ObservableObject {
                 self.scene.applyLoadedDecor(decor)
                 
                 print("✅ Loaded \(buildings.count) buildings & \(decor.count) decor from backend.")
+                
+                do {
+                    let state = try await UserManager.shared.fetchSkinState(userId: uid)
+                    self.inventory.ownedSkins = Set(state.owned)
+                    self.equipped = state.equipped
+                    // Apply equipped skins to currently loaded buildings
+                    await MainActor.run { [weak self] in
+                        guard let s = self?.scene else { return }
+                        for (base, skin) in state.equipped { s.equipSkin(baseType: base, skin: skin) }
+                    }
+                } catch {
+                    print("fetchSkinState failed:", error.localizedDescription)
+                }
             } catch {
                 let ns = error as NSError
                 print("❌ fetchMapBuildings failed:", ns.localizedDescription, ns.domain, ns.code, ns.userInfo)
@@ -194,6 +207,7 @@ final class MapManager: ObservableObject {
             inventory.ownedSkins.insert(key)
             scene.unlockSkin(baseType: baseType, skin: skin)
             equipped[baseType] = skin
+            await persistSkins()
             print("✅ Purchased skin \(key)")
         } catch {
             print("❌ Purchase skin failed: \(error.localizedDescription)")
@@ -205,13 +219,14 @@ final class MapManager: ObservableObject {
         guard inventory.ownedSkins.contains(key) else { return }
         scene.equipSkin(baseType: baseType, skin: skin)
         equipped[baseType] = skin
+        Task { await persistSkins() }
     }
     
     func equipDefault(baseType: String) {
         scene.clearEquippedSkin(baseType: baseType)
         equipped.removeValue(forKey: baseType)
+        Task { await persistSkins() }
     }
-    //New Code
     
     
     // MARK: - Apply buildings to the scene
@@ -255,4 +270,15 @@ final class MapManager: ObservableObject {
         }
     }
     
+    // MARK: Skin Persistency
+    func persistSkins() async {
+        guard let uid = scene.userId ?? Auth.auth().currentUser?.uid else { return }
+        do {
+            try await UserManager.shared.saveSkinState(userId: uid,
+                                                       owned: inventory.ownedSkins,
+                                                       equipped: equipped)
+        } catch {
+            print("saveSkinState failed:", error.localizedDescription)
+        }
+    }
 }
