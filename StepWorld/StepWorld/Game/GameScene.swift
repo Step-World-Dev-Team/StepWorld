@@ -64,7 +64,7 @@ final class GameScene: SKScene {
     private var hudLabel: SKLabelNode?
 
     // MARK: - Build menu
-    private var buildMenu: SKNode?
+    var buildMenu: SKNode?
     private let availableBuildings = ["Barn", "House", "Farm"]
     private let panelSprite  = "build_menu_background"
     private let buttonSprite = "clear_button"
@@ -1068,9 +1068,10 @@ final class GameScene: SKScene {
         cameraNode.addChild(menu); buildMenu = menu
 
         // Layout (reuse your sizing constants)
+        let infoBlockH: CGFloat = 68
         let buttons = ["Upgrade", "Sell", "Cancel"]
         let buttonsBlockH = CGFloat(buttons.count) * (menuButtonH + menuGap) - menuGap
-        let panelH = menuHeaderPad + titleToListGap + buttonsBlockH + menuFooterPad/2
+        let panelH = menuHeaderPad + titleToListGap + infoBlockH + 14 + buttonsBlockH + menuFooterPad/2
         let panelSize = CGSize(width: panelWidth, height: panelH)
 
         // Panel        
@@ -1088,9 +1089,49 @@ final class GameScene: SKScene {
         title.fontColor = .label
         title.position = CGPoint(x: 0, y: panelSize.height/2 - 60)
         menu.addChild(title)
+        
+        // --- Info box (uses helper) ---
+        let bType = (building.userData?["type"] as? String) ?? "Building"
+            let bLevel = (building.userData?["level"] as? Int) ?? 1
+            let info = buildingDescription(type: bType, level: bLevel)
+        // Background for info
+            let infoBG = SKShapeNode(rectOf: CGSize(width: panelWidth - 40, height: infoBlockH), cornerRadius: 10)
+            infoBG.fillColor = UIColor(red: 0.89, green: 0.49, blue: 0.30, alpha: 0.20)
+            infoBG.strokeColor = UIColor.white.withAlphaComponent(0.35)
+            infoBG.lineWidth = 1
+            infoBG.position = CGPoint(x: 0, y: title.position.y - 40)
+            infoBG.zPosition = 1
+            menu.addChild(infoBG)
+
+            // Title (Lv info)
+            let infoTitle = SKLabelNode(text: info.title)
+            infoTitle.fontName = "PressStart2P-Regular"
+            infoTitle.fontSize = 12
+            infoTitle.fontColor = .black
+            infoTitle.position = CGPoint(x: 0, y: infoBG.position.y + 12)
+            infoTitle.zPosition = 2
+            infoTitle.name = "infoTitle"
+            menu.addChild(infoTitle)
+
+            // Blurb
+            let infoBody = SKLabelNode(text: info.blurb)
+            infoBody.preferredMaxLayoutWidth = infoBG.frame.width - 20
+            infoBody.fontName = "PressStart2P-Regular"
+            infoBody.fontSize = 11
+            infoBody.fontColor = .black
+            infoBody.lineBreakMode = .byWordWrapping
+            infoBody.numberOfLines = 0
+            infoBody.verticalAlignmentMode = .center
+            infoBody.horizontalAlignmentMode = .center
+            infoBody.position = infoBG.position
+            infoBody.zPosition = 2
+            infoBody.name = "infoBody"
+            menu.addChild(infoBody)
+    
+
 
         // Buttons
-        var y = panelSize.height/2 - menuHeaderPad - titleToListGap - menuButtonH/2
+        var y = infoBG.position.y - infoBlockH/2 - 16 - menuButtonH/2
 
         func addButton(_ label: String, action: String, isCancel: Bool = false) {
             let btn = buttonNode(
@@ -1243,7 +1284,8 @@ final class GameScene: SKScene {
                 
                 //Play sound
                 playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
-
+                // ✅ refresh the info labels using helper
+                updateManageMenuInfo(for: building)
             } else {
                 print("No image named \(newTextureName).png found")
             }
@@ -1270,6 +1312,8 @@ final class GameScene: SKScene {
             print("Refunded \(refundAmount). New balance: \(newBalance)")
             
             playLoopingSFX("coin_drop", loops: 1, volume: 0.8, clipDuration: 1.0)
+            
+            updateManageMenuInfo(for: building)
             
             // Remove from scene and tracking; clear occupancy
             if let idx = buildings.firstIndex(of: building) { buildings.remove(at: idx) }
