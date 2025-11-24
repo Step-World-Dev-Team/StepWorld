@@ -24,7 +24,14 @@ enum Difficulty: String, CaseIterable, Identifiable {
         case .hard:   return "10,000+ steps per day"
         }
     }
-}
+    var ratioDescription: String {
+            switch self {
+            case .easy:   return "1 step = 1 coin"
+            case .medium: return "1 step = 0.75 coin"
+            case .hard:   return "1 step = 0.5 coin"
+            }
+        }
+    }
 
 struct DifficultySelectionView: View {
     let userId: String
@@ -83,12 +90,41 @@ struct DifficultySelectionView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                             }
                         }
+            VStack(spacing: 10) {
+            Text("PS: How coins work")
+                .font(.custom("Press Start 2P", size: 14))
+                .foregroundColor(Color(red: 1.0, green: 0.973, blue: 0.906))
+                
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Difficulty.allCases) { level in
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color.white.opacity(0.7))
+                            .frame(width: 6, height: 6)
+                            Text("\(level.title): \(level.ratioDescription)")
+                            .font(.custom("Press Start 2P", size: 14))
+                            .foregroundColor(Color(red: 1.0, green: 0.973, blue: 0.906))
+                            .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
                     }
-                    .padding(.bottom, 16)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: 420, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, sideGutter)
+                    .padding(.vertical, 14)
+                    .background(Color(red: 0.89, green: 0.49, blue: 0.30).opacity(0.3))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 2)
+                    .padding(.horizontal, sideGutter)
+                    .padding(.top, 90)
+
+                }
+                    .padding(.bottom, 16) // keeps distance from the bottom helper text
+                    .frame(maxWidth: .infinity)
             }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+            // Bottom helper text
             .safeAreaInset(edge: .bottom) {
                 Text("You can change this later in Settings.")
                     .font(.custom("Press Start 2P", size: 10))

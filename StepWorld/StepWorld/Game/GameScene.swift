@@ -563,88 +563,6 @@ final class GameScene: SKScene {
         [tl, tr, bl, br].forEach { container.addChild($0) }
     }
 
-    /*private func setPlotSelected(_ plot: SKShapeNode, selected: Bool) {
-        if selected {
-            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.18)
-            plot.strokeColor = UIColor.systemGreen
-            plot.lineWidth   = 3
-        } else {
-            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
-            plot.strokeColor = UIColor.systemGreen.withAlphaComponent(0.65)
-            plot.lineWidth   = 2
-        }
-
-        let size = (plot.path?.boundingBox.size) ?? .zero
-        ensureCornerBrackets(on: plot, size: size, visible: selected)
-        plot.childNode(withName: "cornerBrackets")?.isHidden = !selected
-    }
-        */
-
-    /*private func stylePlot(_ plot: SKShapeNode, size: CGSize) {
-        // Softer base
-        plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
-        plot.strokeColor = UIColor.systemGreen.withAlphaComponent(0.65)
-        plot.lineWidth   = 2
-        plot.glowWidth   = plotGlow
-        plot.blendMode   = .alpha
-
-        // Softer pulsing ring
-        let ringSize = CGSize(width: size.width * ringScale, height: size.height * ringScale)
-        let ring = SKShapeNode(rectOf: ringSize, cornerRadius: 10)
-        ring.strokeColor = UIColor.white.withAlphaComponent(0.45)
-        ring.lineWidth   = 1.5
-        ring.glowWidth   = 5
-        ring.alpha       = ringAlpha
-        ring.blendMode   = .alpha
-        ring.zPosition   = 6
-        plot.addChild(ring)
-
-        let up   = SKAction.group([.fadeAlpha(to: 0.5, duration: 1.2),
-                                   .scale(to: 1.04, duration: 1.2)])
-        let down = SKAction.group([.fadeAlpha(to: 0.3, duration: 1.2),
-                                   .scale(to: 1.00, duration: 1.2)])
-        ring.run(.repeatForever(.sequence([up, down])))
-
-        // Corner brackets (subtle)
-        let brackets = SKNode()
-        brackets.zPosition = 7
-        plot.addChild(brackets)
-
-        func corner(_ dx: CGFloat, _ dy: CGFloat) -> SKShapeNode {
-            let path = UIBezierPath()
-            let len: CGFloat = 14
-            path.move(to: .zero); path.addLine(to: CGPoint(x: len * dx, y: 0))
-            path.move(to: .zero); path.addLine(to: CGPoint(x: 0, y: len * dy))
-            let n = SKShapeNode(path: path.cgPath)
-            n.strokeColor = UIColor.white.withAlphaComponent(0.6)
-            n.lineWidth = 1.5
-            n.alpha = 0.7
-            n.blendMode = .alpha
-            return n
-        }
-
-        let halfW = size.width / 2
-        let halfH = size.height / 2
-        let tl = corner( 1,  1); tl.position = CGPoint(x: -halfW, y:  halfH)
-        let tr = corner(-1,  1); tr.position = CGPoint(x:  halfW, y:  halfH)
-        let bl = corner( 1, -1); bl.position = CGPoint(x: -halfW, y: -halfH)
-        let br = corner(-1, -1); br.position = CGPoint(x:  halfW, y: -halfH)
-        [tl,tr,bl,br].forEach { brackets.addChild($0) }
-    }
-
-    private func setPlotSelected(_ plot: SKShapeNode, selected: Bool) {
-        if selected {
-            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.32)
-            plot.strokeColor = UIColor.systemGreen
-            plot.lineWidth   = 3
-        } else {
-            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
-            plot.strokeColor = UIColor.systemGreen.withAlphaComponent(0.65)
-            plot.lineWidth   = 2
-        }
-    }
-     */
-
     // MARK: - HUD
     private func setupHUD() {
         hudRoot.zPosition = 10_000
@@ -719,23 +637,6 @@ final class GameScene: SKScene {
         dismissBuildMenu()
     }
 
-    /*@objc private func panGesture(_ sender: UIPanGestureRecognizer) {
-        guard let view = self.view else { return }
-        let t = sender.translation(in: view)
-        sender.setTranslation(.zero, in: view)
-
-        cameraNode.position.x -= t.x * cameraNode.xScale
-        cameraNode.position.y += t.y * cameraNode.yScale
-        clampCameraToMap()
-
-        if sender.state == .ended {
-            let v = sender.velocity(in: view)
-            panVelocity = CGPoint(x: -v.x * cameraNode.xScale, y: v.y * cameraNode.yScale)
-        } else {
-            panVelocity = .zero
-        }
-    }
-     */
     @objc private func panGesture(_ sender: UIPanGestureRecognizer) {
         // 🔹 clear selection as soon as the user starts dragging the map
         if sender.state == .began, selectedPlot != nil {
@@ -941,53 +842,6 @@ final class GameScene: SKScene {
             // Fallback — tapped empty space
             dismissBuildMenu()
         }
-
-       /* // E) Plot selection → Build/Manage
-        if let plot = tapped.first(where: { $0.name == "plot" }) as? SKShapeNode {
-            for p in plotNodes { setPlotSelected(p, selected: false) }
-            setPlotSelected(plot, selected: true)
-            selectedPlot = plot
-            if isPlotOccupied(plot) {
-                showManageMenu(for: plot)
-            } else {
-                showBuildMenu() }
-            return
-        }
-
-        // F) Fallback
-        dismissBuildMenu()
-    } */
-
-
-    /*// MARK: - Touch → plot select → build menu
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let t = touches.first else { return }
-        let loc = t.location(in: self)
-        let tapped = nodes(at: loc)
-
-        // Handle menu taps first (either build or manage)
-        if handleManageMenuTap(tapped) { return }
-        if handleBuildMenuTap(tapped) { return }
-
-        // Plot selection → show either Build or Manage menu
-        if let plot = tapped.first(where: { $0.name == "plot" }) as? SKShapeNode {
-            for p in plotNodes { setPlotSelected(p, selected: false) }
-            setPlotSelected(plot, selected: true)
-            selectedPlot = plot
-
-            if isPlotOccupied(plot) {
-                if let bld = building(on: plot) {
-                    showManageMenu(for: bld)
-                }
-            } else {
-                showBuildMenu()
-            }
-            return
-        }
-
-        dismissBuildMenu()
-    }
-*/
 
     // MARK: - Build menu (fixed layout: no overlap)
     
