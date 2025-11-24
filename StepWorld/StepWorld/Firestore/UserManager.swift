@@ -124,67 +124,75 @@ extension UserManager {
         let dailyRef = dailyMetricsDocument(userId, dateId: dateId)
         
         return try await withCheckedThrowingContinuation { cont in
-                fs.runTransaction({ (txn, errorPointer) -> Any? in
-                    do {
-                        // --- Read user & current balance
-                        let userSnap = try txn.getDocument(userRef)
-                        var balance = self.asInt(userSnap.data()?["balance"])
-
-                        // --- Read today's metrics (may not exist)
-                        let dailySnap = try? txn.getDocument(dailyRef)
-                        let dailyData = dailySnap?.data() ?? [:]
-
-                        let prevSteps = self.asInt(dailyData["step_count"])
-                        let creditedInitial = (dailyData["credited_initial"] as? Bool) ?? false
-                        let now = Date()
-
-                        // --- Always write the latest step_count (upsert)
-                        if dailySnap?.exists == true {
-                            txn.updateData([
-                                "step_count": newStepCount,
-                                "updated_at": now
-                            ], forDocument: dailyRef)
-                        } else {
-                            txn.setData([
-                                "date_id": dateId,
-                                "step_count": newStepCount,
-                                "created_at": now,
-                                "updated_at": now,
-                                // we may set credited_initial below in the same transaction
-                            ], forDocument: dailyRef, merge: true)
-                        }
-
-                        // --- Compute delta normally
-                        let baseDelta = max(0, newStepCount - prevSteps)
-                        var deltaToCredit = baseDelta
-
-                        //     non-zero steps today AND initial wasn’t credited yet, credit once now.
-                        if deltaToCredit == 0, newStepCount > 0, creditedInitial == false {
-                            deltaToCredit = newStepCount
-                            // Mark the flag so we never double-credit
-                            txn.setData(["credited_initial": true], forDocument: dailyRef, merge: true)
-                        } else if creditedInitial == false, newStepCount == 0 {
-                            // Keep it false and let later increments credit via baseDelta
-                        } else if creditedInitial == false, baseDelta > 0 {
-                            txn.setData(["credited_initial": true], forDocument: dailyRef, merge: true)
-                        }
-
-                        // --- Apply balance change
-                        if deltaToCredit > 0 {
-                            balance += deltaToCredit
-                            if userSnap.exists {
-                                txn.updateData(["balance": balance], forDocument: userRef)
-                            } else {
-                                txn.setData(["user_id": userId, "balance": balance], forDocument: userRef, merge: true)
-                            }
-                        }
-
-                        return ["delta": deltaToCredit, "balance": balance]
-                    } catch let err as NSError {
-                        errorPointer?.pointee = err
-                        return nil
+            fs.runTransaction({ (txn, errorPointer) -> Any? in
+                do {
+                    // --- Read user & current balance
+                    let userSnap = try txn.getDocument(userRef)
+                    var balance = self.asInt(userSnap.data()?["balance"])
+                    
+                    // --- Read difficulty with default if missing
+                    let difficultyRaw = (userSnap.data()?["difficulty"] as? String) ?? Difficulty.easy.rawValue
+                    let difficulty = Difficulty(rawValue: difficultyRaw) ?? .easy
+                    let rate = difficulty.coinPerStep
+                    
+                    // --- Read today's metrics (may not exist)
+                    let dailySnap = try? txn.getDocument(dailyRef)
+                    let dailyData = dailySnap?.data() ?? [:]
+                    
+                    let prevSteps = self.asInt(dailyData["step_count"])
+                    let creditedInitial = (dailyData["credited_initial"] as? Bool) ?? false
+                    let now = Date()
+                    
+                    // --- Always write the latest step_count (upsert)
+                    if dailySnap?.exists == true {
+                        txn.updateData([
+                            "step_count": newStepCount,
+                            "updated_at": now
+                        ], forDocument: dailyRef)
+                    } else {
+                        txn.setData([
+                            "date_id": dateId,
+                            "step_count": newStepCount,
+                            "created_at": now,
+                            "updated_at": now,
+                            // we may set credited_initial below in the same transaction
+                        ], forDocument: dailyRef, merge: true)
                     }
-                }, completion: { result, error in
+                    
+                    // --- Compute delta normally
+                    let baseDelta = max(0, newStepCount - prevSteps)
+                    var deltaToCredit = baseDelta
+                    
+                    //     non-zero steps today AND initial wasn’t credited yet, credit once now.
+                    if deltaToCredit == 0, newStepCount > 0, creditedInitial == false {
+                        deltaToCredit = newStepCount
+                        // Mark the flag so we never double-credit
+                        txn.setData(["credited_initial": true], forDocument: dailyRef, merge: true)
+                    } else if creditedInitial == false, newStepCount == 0 {
+                        // Keep it false and let later increments credit via baseDelta
+                    } else if creditedInitial == false, baseDelta > 0 {
+                        txn.setData(["credited_initial": true], forDocument: dailyRef, merge: true)
+                    }
+                    
+                    // --- Convert steps -> coins using rate
+                    let deltaCoins = Int(floor(Double(deltaToCredit) * rate))
+                    
+                    // --- Apply balance change
+                    if deltaToCredit > 0 {
+                        balance += deltaToCredit
+                        if userSnap.exists {
+                            txn.updateData(["balance": balance], forDocument: userRef)
+                        } else {
+                            txn.setData(["user_id": userId, "balance": balance], forDocument: userRef, merge: true)
+                        }
+                    }
+                    
+                    return ["delta": deltaToCredit, "balance": balance]
+                } catch let err as NSError {
+                    errorPointer?.pointee = err
+                    return nil
+                }
+            }, completion: { result, error in
                 if let error = error { return cont.resume(throwing: error) }
                 guard
                     let dict = result as? [String: Int],
@@ -377,10 +385,10 @@ extension DBUser {
 final class ShopRepository {
     static let shared = ShopRepository()
     private init() {}
-
+    
     private let db = Firestore.firestore()
     private var catalog: CollectionReference { db.collection("ShopCatalog") }
-
+    
     // Fetch a product (price & type) to trust server-side values
     func getProduct(_ productId: String) async throws -> (type: String, price: Int) {
         let doc = try await catalog.document(productId).getDocument()
@@ -395,7 +403,7 @@ final class ShopRepository {
 
 extension UserManager {
     private func decorFieldKey() -> String { "decor_items" }
-
+    
     func saveDecor(userId: String, items: [DecorItem]) async throws {
         // Firestore.Encoder handles nested maps fine (CGPoint encodes as {x,y})
         let encoded: [[String: Any]] = try items.map { try encoder.encode($0) }
@@ -404,7 +412,7 @@ extension UserManager {
             "decor_updated_at": FieldValue.serverTimestamp()
         ], merge: true)
     }
-
+    
     func fetchDecor(userId: String) async throws -> [DecorItem] {
         let snap = try await userDocument(userId).getDocument()
         guard let raw = snap.data()?[decorFieldKey()] as? [[String: Any]] else { return [] }
@@ -412,70 +420,70 @@ extension UserManager {
     }
     
     func purchaseProduct(userId: String, productId: String, quantity: Int = 1) async throws -> (newBalance: Int, purchaseId: String) {
-            let db = Firestore.firestore()
-            let userRef = userDocument(userId)
-            let purchasesRef = userRef.collection("purchases")
-            let invRef = userRef.collection("inventory").document(productId)
-            let product = try await ShopRepository.shared.getProduct(productId)
-
-            return try await withCheckedThrowingContinuation { cont in
-                db.runTransaction({ (txn, errPtr) -> Any? in
-                    do {
-                        // 1) Read user balance
-                        let userSnap = try txn.getDocument(userRef)
-                        var balance = (userSnap.data()?["balance"] as? Int) ?? 0
-
-                        // 2) Compute total cost
-                        let total = product.price * max(1, quantity)
-                        guard total >= 0, balance >= total else {
-                            throw SpendError.insufficientFunds
-                        }
-
-                        // 3) Deduct & write new balance
-                        balance -= total
-                        if userSnap.exists {
-                            txn.updateData(["balance": balance], forDocument: userRef)
-                        } else {
-                            txn.setData(["user_id": userId, "balance": balance], forDocument: userRef, merge: true)
-                        }
-
-                        // 4) Record purchase
-                        let purchaseId = purchasesRef.document().documentID
-                        let purchase: [String: Any] = [
-                            "purchaseId": purchaseId,
-                            "userId": userId,
-                            "productId": productId,
-                            "type": product.type,
-                            "quantity": quantity,
-                            "pricePaid": product.price,
-                            "createdAt": FieldValue.serverTimestamp(),
-                            "status": "completed"
-                        ]
-                        txn.setData(purchase, forDocument: purchasesRef.document(purchaseId))
-
-                        // 5) Increment inventory count
-                        txn.setData(["quantity": FieldValue.increment(Int64(quantity))],
-                                    forDocument: invRef, merge: true)
-
-                        return ["balance": balance, "purchaseId": purchaseId]
-                    } catch let e as NSError {
-                        errPtr?.pointee = e
-                        return nil
+        let db = Firestore.firestore()
+        let userRef = userDocument(userId)
+        let purchasesRef = userRef.collection("purchases")
+        let invRef = userRef.collection("inventory").document(productId)
+        let product = try await ShopRepository.shared.getProduct(productId)
+        
+        return try await withCheckedThrowingContinuation { cont in
+            db.runTransaction({ (txn, errPtr) -> Any? in
+                do {
+                    // 1) Read user balance
+                    let userSnap = try txn.getDocument(userRef)
+                    var balance = (userSnap.data()?["balance"] as? Int) ?? 0
+                    
+                    // 2) Compute total cost
+                    let total = product.price * max(1, quantity)
+                    guard total >= 0, balance >= total else {
+                        throw SpendError.insufficientFunds
                     }
-                }, completion: { result, error in
-                    if let error = error {
-                        if case SpendError.insufficientFunds = error { return cont.resume(throwing: SpendError.insufficientFunds) }
-                        return cont.resume(throwing: error)
+                    
+                    // 3) Deduct & write new balance
+                    balance -= total
+                    if userSnap.exists {
+                        txn.updateData(["balance": balance], forDocument: userRef)
+                    } else {
+                        txn.setData(["user_id": userId, "balance": balance], forDocument: userRef, merge: true)
                     }
-                    guard let dict = result as? [String: Any],
-                          let bal = dict["balance"] as? Int,
-                          let pid = dict["purchaseId"] as? String else {
-                        return cont.resume(throwing: NSError(domain: "Shop", code: -3, userInfo: [NSLocalizedDescriptionKey: "Bad transaction result"]))
-                    }
-                    cont.resume(returning: (bal, pid))
-                })
-            }
+                    
+                    // 4) Record purchase
+                    let purchaseId = purchasesRef.document().documentID
+                    let purchase: [String: Any] = [
+                        "purchaseId": purchaseId,
+                        "userId": userId,
+                        "productId": productId,
+                        "type": product.type,
+                        "quantity": quantity,
+                        "pricePaid": product.price,
+                        "createdAt": FieldValue.serverTimestamp(),
+                        "status": "completed"
+                    ]
+                    txn.setData(purchase, forDocument: purchasesRef.document(purchaseId))
+                    
+                    // 5) Increment inventory count
+                    txn.setData(["quantity": FieldValue.increment(Int64(quantity))],
+                                forDocument: invRef, merge: true)
+                    
+                    return ["balance": balance, "purchaseId": purchaseId]
+                } catch let e as NSError {
+                    errPtr?.pointee = e
+                    return nil
+                }
+            }, completion: { result, error in
+                if let error = error {
+                    if case SpendError.insufficientFunds = error { return cont.resume(throwing: SpendError.insufficientFunds) }
+                    return cont.resume(throwing: error)
+                }
+                guard let dict = result as? [String: Any],
+                      let bal = dict["balance"] as? Int,
+                      let pid = dict["purchaseId"] as? String else {
+                    return cont.resume(throwing: NSError(domain: "Shop", code: -3, userInfo: [NSLocalizedDescriptionKey: "Bad transaction result"]))
+                }
+                cont.resume(returning: (bal, pid))
+            })
         }
+    }
 }
 
 
@@ -497,6 +505,22 @@ extension UserManager {
                     "balance": newUser.balance ?? 0
                 ], merge: true)
         }
+    }
+}
+
+// MARK: Difficulty Functions
+extension UserManager {
+    // Read the user's difficulty (nil if not set)
+    func getDifficulty(userId: String) async throws -> Difficulty? {
+        let snap = try await userDocument(userId).getDocument()
+        guard let raw = snap.data()?["difficulty"] as? String,
+              let diff = Difficulty(rawValue: raw) else { return nil }
+        return diff
+    }
+    
+    // Write/overwrite the user's difficulty
+    func setDifficulty(userId: String, _ diff: Difficulty) async throws {
+        try await userDocument(userId).setData(["difficulty": diff.rawValue], merge: true)
     }
 }
 
