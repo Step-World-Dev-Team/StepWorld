@@ -16,6 +16,7 @@ struct Building: Codable {
     var level: Int?   // optional so you don’t break old data
     var skin: String? // e.g. "Blue" for Barn, "Candy" for House
     var broken: Bool?
+    var damaged: Bool //Maybe not used?
 }
 
 extension Building {
@@ -25,6 +26,7 @@ extension Building {
         self.level = (node.userData?["level"] as? Int)
         self.skin  = (node.userData?["skin"] as? String)
         self.broken = (node.userData?["broken"] as? Bool) ?? false
+        self.damaged = (node.userData?["damaged"] as? Bool) ?? false //maybe not used?
         self.x = Double(node.position.x)
         self.y = Double(node.position.y)
     }
@@ -39,6 +41,7 @@ extension Building {
     
     func makeSprite() -> SKSpriteNode {
         // decide visual type based on saved skin
+
         let base = resolvedBaseName(type: type, skin: skin)
         let lvl = (level ?? 1)
         let prefix = (broken ?? false) ? "Broken" : ""   // <- NEW
@@ -48,13 +51,14 @@ extension Building {
             ? SKSpriteNode(imageNamed: name)
             : SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
 
+
         if sprite.userData == nil { sprite.userData = [:] }
         sprite.userData?["type"]   = type
         sprite.userData?["plot"]   = plot
         sprite.userData?["skin"]   = skin ?? "Default"
         sprite.userData?["broken"] = (broken ?? false)
         if let lvl = level { sprite.userData?["level"] = lvl }
-
+        
         sprite.position = CGPoint(x: x, y: y)
         sprite.name = "building"
         sprite.zPosition = 1

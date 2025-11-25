@@ -31,6 +31,14 @@ struct StepWorldApp: App {
                     map.userId   = uid
                     steps.syncToday()
                     await map.refreshNow()
+                    
+                    let delta = map.pendingChangeSinceLastSeen()
+                    if delta.steps != 0 || delta.balance != 0 {
+                        NotificationCenter.default.post(name: .showChangePopup, object: nil, userInfo: [
+                            "steps": delta.steps,
+                            "balance": delta.balance
+                        ])
+                    }
                 }
             }
         }
