@@ -18,6 +18,13 @@ final class MapManager: ObservableObject {
     var scene: GameScene
     private var pendingSave: DispatchWorkItem?
     
+
+    // MARK: Pop-Up Variables
+    private let defaults = UserDefaults.standard
+    private let kLastSeenSteps   = "last_seen_steps"
+    private let kLastSeenBalance = "last_seen_balance"
+    private let kLastSeenAt      = "last_seen_at"
+   
     init() {
         // one scene for the whole app session
         self.scene = GameScene(size: UIScreen.main.bounds.size)
@@ -281,4 +288,20 @@ final class MapManager: ObservableObject {
             print("saveSkinState failed:", error.localizedDescription)
         }
     }
+    
+    // MARK: Pop-Up Functions
+    /// Current change vs. last time the user saw the app (not persisted).
+    func pendingChangeSinceLastSeen() -> (steps: Int, balance: Int) {
+        let lastS = defaults.object(forKey: kLastSeenSteps) as? Int ?? 0
+        let lastB = defaults.object(forKey: kLastSeenBalance) as? Int ?? 0
+        return (todaySteps - lastS, balance - lastB)
+    }
+
+    /// Call this when the popup is dismissed (i.e., the user has "seen" these values).
+    func markStatsAsSeenNow() {
+        defaults.set(todaySteps, forKey: kLastSeenSteps)
+        defaults.set(balance,    forKey: kLastSeenBalance)
+        defaults.set(Date().timeIntervalSince1970, forKey: kLastSeenAt)
+    }
+    
 }
