@@ -117,7 +117,7 @@ extension UserManager {
     }
     
     // Credit delta steps and upsert today's daily_metrics (atomic)
-    func creditStepsAndSyncDaily(userId: String, date: Date, newStepCount: Int) async throws -> (delta: Int, balance: Int) {
+    func creditStepsAndSyncDaily(userId: String, date: Date, newStepCount: Int) async throws -> (delta: Int, balance: Int, totalSteps: Int) {
         let fs = Firestore.firestore()
         let dateId = Self.dateId(for: date)
         let userRef = userDocument(userId)
@@ -129,6 +129,7 @@ extension UserManager {
                         // --- Read user & current balance
                         let userSnap = try txn.getDocument(userRef)
                         var balance = self.asInt(userSnap.data()?["balance"])
+                        var totalSteps = self.asInt(userSnap.data()?["total_steps"])
 
                         // --- Read today's metrics (may not exist)
                         let dailySnap = try? txn.getDocument(dailyRef)
@@ -171,15 +172,24 @@ extension UserManager {
 
                         // --- Apply balance change
                         if deltaToCredit > 0 {
-                            balance += deltaToCredit
-                            if userSnap.exists {
-                                txn.updateData(["balance": balance], forDocument: userRef)
-                            } else {
-                                txn.setData(["user_id": userId, "balance": balance], forDocument: userRef, merge: true)
-                            }
-                        }
-
-                        return ["delta": deltaToCredit, "balance": balance]
+                                            balance    += deltaToCredit
+                                            totalSteps += deltaToCredit
+                                            
+                                            if userSnap.exists {
+                                                txn.updateData([
+                                                    "balance": balance,
+                                                    "total_steps": totalSteps
+                                                ], forDocument: userRef)
+                                            } else {
+                                                txn.setData([
+                                                    "user_id": userId,
+                                                    "balance": balance,
+                                                    "total_steps": totalSteps
+                                                ], forDocument: userRef, merge: true)
+                                            }
+                                        }
+                                        
+                                        return ["delta": deltaToCredit, "balance": balance, "total_steps": totalSteps]
                     } catch let err as NSError {
                         errorPointer?.pointee = err
                         return nil
@@ -189,7 +199,8 @@ extension UserManager {
                 guard
                     let dict = result as? [String: Int],
                     let delta = dict["delta"],
-                    let balance = dict["balance"]
+                    let balance = dict["balance"],
+                    let total = dict["total_steps"]
                 else {
                     return cont.resume(throwing: NSError(
                         domain: "UserManager",
@@ -197,7 +208,7 @@ extension UserManager {
                         userInfo: [NSLocalizedDescriptionKey: "Transaction result malformed"]
                     ))
                 }
-                cont.resume(returning: (delta, balance))
+                cont.resume(returning: (delta, balance, total))
             })
         }
     }
