@@ -20,6 +20,9 @@ struct RootView: View {
     @State private var isSignedIn = false
     @State private var authHandle: AuthStateDidChangeListenerHandle?
     
+    @State private var showDifficultySelection = false
+    @State private var currentUserId: String?
+    
     var body: some View {
         Group {
             if isSignedIn {
@@ -36,12 +39,22 @@ struct RootView: View {
                 Task { @MainActor in
                     let signedIn = (user != nil)
                     isSignedIn = signedIn
+                    
                     if signedIn, let authed = try? AuthenticationManager.shared.getAuthenticatedUser() {
+                        let uid = authed.uid
+                        currentUserId = uid
+                        
                         stepManager.userId = authed.uid
                         mapManager.userId  = authed.uid   // propagates to scene via didSet, if you added that
+                        
                         try? await mapManager.loadFromFirestoreIfAvailable()
                         stepManager.syncToday()          // HealthKit → Firestore
                         await mapManager.refreshNow()    // Firestore → UI
+                        
+                        // Server-side difficulty check
+                        let diff = try? await UserManager.shared.getDifficulty(userId: uid)
+                        showDifficultySelection = (diff == nil)
+                       
                         
                         // trigger pop-up
                         let delta = mapManager.pendingChangeSinceLastSeen()
@@ -59,6 +72,9 @@ struct RootView: View {
                         stepManager.userId = nil
                         mapManager.userId  = nil
                         mapManager.scene.userId = nil
+                        currentUserId = nil
+                        showDifficultySelection = false
+                        
                     }
                     print("👂 Auth state changed → signedIn=\(signedIn)")
                 }
@@ -69,6 +85,11 @@ struct RootView: View {
                 Auth.auth().removeStateDidChangeListener(h)
                 authHandle = nil
             }
+        }
+        .fullScreenCover(isPresented: $showDifficultySelection) {
+            DifficultySelectionView(onFinished: {
+                showDifficultySelection = false
+            })
         }
     }
 }
