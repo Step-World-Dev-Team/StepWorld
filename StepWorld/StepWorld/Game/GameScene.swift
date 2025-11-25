@@ -1164,11 +1164,11 @@ final class GameScene: SKScene {
         
         // --- Info box (uses helper) ---
         let bType = (building.userData?["type"] as? String) ?? "Building"
-            let bLevel = (building.userData?["level"] as? Int) ?? 1
-            let info = buildingDescription(type: bType, level: bLevel)
+        let bLevel = (building.userData?["level"] as? Int) ?? 1
+        let skin = (building.userData?["skin"] as? String)
+        let info = buildingDescription(type: bType, skin:skin, level: bLevel)
         // Background for info
             let infoBG = SKShapeNode(rectOf: CGSize(width: panelWidth - 40, height: infoBlockH), cornerRadius: 10)
-            infoBG.fillColor = UIColor(red: 0.89, green: 0.49, blue: 0.30, alpha: 0.20)
             infoBG.strokeColor = UIColor.white.withAlphaComponent(0.35)
             infoBG.lineWidth = 1
             infoBG.position = CGPoint(x: 0, y: title.position.y - 40)
