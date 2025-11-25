@@ -15,16 +15,16 @@ extension GameScene {
         switch type {
         case "House":
             switch level {
-            case 1: return ("House – Lvl 1", "A cozy starter\n home for new\n settlers.")
-            case 2: return ("House – Lvl 2", "Expanded living\n space with room for growth.")
+            case 1: return ("House – Lvl 1", "\nA cozy starter\n home for new\n settlers.")
+            case 2: return ("House – Lvl 2", "\n  Expanded living\n space with room for \n  growth.")
             default: return ("House – Lv\(level)", "Upgraded home.")
             }
         case "Barn":
             switch level {
-            case 1: return ("Barn – Lvl 1", "A simple barn,\n perfect for\n beginner farmers.")
-            case 2: return ("Barn – Lvl 2", "Reinforced structure,\n can house more animals.")
-            case 3: return ("Barn – Lvl 3", "A well-stocked\n barn buzzing with activity.")
-            default: return ("Barn – Lvl\(level)", "A full barn,\n the heart of your growing farm!")
+            case 1: return ("Barn – Lvl 1", "\n A simple barn,\n perfect for\n beginner farmers.")
+            case 2: return ("Barn – Lvl 2", "\n\nReinforced structure,can house more animals.")
+            case 3: return ("Barn – Lvl 3", "\n  A well-stocked\n barn buzzing with \n  activity.")
+            default: return ("Barn – Lvl\(level)", "\n A full barn,\nthe heart of your \n growing farm!")
                 
             }
         default:
