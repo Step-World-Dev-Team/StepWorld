@@ -303,3 +303,9 @@ final class AchievementsManager {
         )
     }
 }
+
+extension AchievementsManager {
+    func definition(for id: AchievementId) -> Definition? {
+        definitions[id]
+    }
+}
