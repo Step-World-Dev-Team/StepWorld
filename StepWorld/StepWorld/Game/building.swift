@@ -15,7 +15,8 @@ struct Building: Codable {
     var y: Double
     var level: Int?   // optional so you don’t break old data
     var skin: String? // e.g. "Blue" for Barn, "Candy" for House
-    var damaged: Bool
+    var broken: Bool?
+    var damaged: Bool //Maybe not used?
 }
 
 extension Building {
@@ -24,34 +25,38 @@ extension Building {
         self.plot  = (node.userData?["plot"] as? String) ?? "UnknownPlot"
         self.level = (node.userData?["level"] as? Int)
         self.skin  = (node.userData?["skin"] as? String)
-        self.damaged = (node.userData?["damaged"] as? Bool) ?? false
+        self.broken = (node.userData?["broken"] as? Bool) ?? false
+        self.damaged = (node.userData?["damaged"] as? Bool) ?? false //maybe not used?
         self.x = Double(node.position.x)
         self.y = Double(node.position.y)
     }
     
+    private func resolvedBaseName(type: String, skin: String?) -> String {
+        switch (type, skin) {
+        case ("Barn","Blue"):  return "BlueBarn"
+        case ("House","Candy"):return "CandyHouse"
+        default:               return type
+        }
+    }
+    
     func makeSprite() -> SKSpriteNode {
         // decide visual type based on saved skin
-        let resolvedType: String
-        switch (type, skin) {
-        case ("Barn",  "Blue"):  resolvedType = "BlueBarn"
-        case ("House", "Candy"): resolvedType = "CandyHouse"
-        default:                 resolvedType = type
-        }
-        let name: String
-        if damaged {
-            name = level != nil ? "\(resolvedType)_Broken_L\(level!)" : "\(resolvedType)_Broken"
-        } else {
-            name = level != nil ? "\(resolvedType)_L\(level!)" : resolvedType
-        }
-        
+
+        let base = resolvedBaseName(type: type, skin: skin)
+        let lvl = (level ?? 1)
+        let prefix = (broken ?? false) ? "Broken" : ""   // <- NEW
+        let name = prefix.isEmpty ? "\(base)_L\(lvl)" : "\(prefix)\(base)_L\(lvl)" // e.g. BrokenBlueBarn_L3
+
         let sprite: SKSpriteNode = UIImage(named: name) != nil
-        ? SKSpriteNode(imageNamed: name)
-        : SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
-        
+            ? SKSpriteNode(imageNamed: name)
+            : SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
+
+
         if sprite.userData == nil { sprite.userData = [:] }
-        sprite.userData?["type"]  = type
-        sprite.userData?["plot"]  = plot
-        sprite.userData?["skin"]  = skin ?? "Default"
+        sprite.userData?["type"]   = type
+        sprite.userData?["plot"]   = plot
+        sprite.userData?["skin"]   = skin ?? "Default"
+        sprite.userData?["broken"] = (broken ?? false)
         if let lvl = level { sprite.userData?["level"] = lvl }
         
         sprite.position = CGPoint(x: x, y: y)
