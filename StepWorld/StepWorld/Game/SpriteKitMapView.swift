@@ -24,7 +24,8 @@ struct SpriteKitMapView: View {
     
     @StateObject private var shopVM = ShopViewModel()
     
-    private var isModalPresented: Bool { showProfile || showSettings || showShop}
+    private var isModalPresented: Bool { showProfile || showSettings || showShop || showAchievements
+    }
     
     var body: some View {
         ZStack {
@@ -170,6 +171,7 @@ struct SpriteKitMapView: View {
                                 showProfile = false
                                 showSettings = false
                                 showShop = false
+                                showAchievements = false
                                 
                             }
                         }
@@ -282,9 +284,15 @@ struct SpriteKitMapView: View {
                                     }
                                 }
                             })
+                        } else if showAchievements {
+                            AchievementsView {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                    showAchievements = false
+                                }
+                            }
                         }
-                            // MARK: ADD A NEW ELSE IF FOR ACHIEVEMENTS HERE
-                        }
+                    }
+
                         .background(Color.clear)
                         .frame(
                             width: min(g.size.width * 0.92, 500),

@@ -4,61 +4,105 @@
 //
 //  Created by Isai soria on 11/24/25.
 //
-
 import SwiftUI
 
 struct AchievementsView: View {
+    var onClose: (() -> Void)? = nil   // so SpriteKitMapView can close it
+    
     @StateObject private var viewModel = AchievementsViewModel()
     
-    // TODO: Decide how you present this (sheet, full screen, navigation)
-    // For now, we assume it’s inside a NavigationStack.
+    // Same vibe as ProfileView
+    private let border: CGFloat = 20
+    private let cornerSafeMargin: CGFloat = 2
     
     var body: some View {
-        VStack {
-            if let error = viewModel.errorMessage {
-                Text(error)
-                    .foregroundColor(.red)
-                    .padding()
-            }
+        ZStack {
+            // Use your own background art here
+            Image("ProfileViewBackground")       // or "AchievementsViewBackground"
+                .interpolation(.none)
+                .antialiased(false)
+                .resizable()
+                .frame(width: 350, height: 700)
+                .scaledToFit()
+                .padding()
+                .padding(.bottom, 50)
             
-            if viewModel.isLoading {
-                ProgressView("Loading achievements…")
-                    .padding()
-            }
-            
-            if viewModel.rows.isEmpty && !viewModel.isLoading {
-                // TODO: nicer empty state
-                Text("No achievements yet.")
-                    .foregroundColor(.secondary)
-                    .padding()
-            } else {
-                List {
-                    // TODO: optionally group into sections, e.g. "Steps", "World", etc.
-                    ForEach(viewModel.rows) { row in
-                        AchievementRowView(row: row) {
-                            await handleClaim(for: row)
+            VStack(spacing: 0) {
+                // Close button row (top-right) – same as ProfileView
+                HStack {
+                    Spacer()
+                    Button {
+                        onClose?()
+                    } label: {
+                        Image("close_button")
+                            .resizable()
+                            .interpolation(.none)
+                            .scaledToFit()
+                            .frame(width: 50, height: 50)
+                            .padding(.trailing, 10)
+                            .padding(.top, 10)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                // Title
+                Text("ACHIEVEMENTS")
+                    .font(.custom("Press Start 2P", size: 20))
+                    .foregroundColor(.black)
+                    .padding(.top, 8)
+                
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .font(.custom("Press Start 2P", size: 10))
+                        .foregroundColor(.red)
+                        .padding(.top, 4)
+                }
+                
+                if viewModel.isLoading {
+                    ProgressView()
+                        .padding(.top, 12)
+                }
+                
+                // The scrollable area inside the “walls”
+                ScrollView {
+                    VStack(spacing: 10) {
+                        if viewModel.rows.isEmpty && !viewModel.isLoading {
+                            Text("No achievements yet.")
+                                .font(.custom("Press Start 2P", size: 10))
+                                .foregroundColor(.gray)
+                                .padding(.top, 16)
+                        } else {
+                            ForEach(viewModel.rows) { row in
+                                AchievementRowView(row: row) {
+                                    await handleClaim(for: row)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .center)   // center the card
+                            }
                         }
                     }
+                    // 👇 This padding keeps the rows *inside* the inner frame,
+                    // similar to how Name/Steps/etc are inside the ProfileView walls.
+                    .padding(.horizontal, 40)
+                    .padding(.top, 16)
+                    .padding(.bottom, 30)
                 }
-                .listStyle(.plain)
+                
+                Spacer()
             }
         }
-        .navigationTitle("Achievements") // TODO: custom title styling
-        .onAppear {
-            viewModel.startListening()
-        }
-        .onDisappear {
-            viewModel.stopListening()
-        }
+        .onAppear { viewModel.startListening() }
+        .onDisappear { viewModel.stopListening() }
+        .navigationBarBackButtonHidden(true)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
     
-    // MARK: - Claim wrapper with basic error handling
-    
+    // MARK: - Claim wrapper
     private func handleClaim(for row: AchievementsViewModel.Row) async {
         do {
             try await viewModel.claim(row)
         } catch {
-            // TODO: surface errors nicely in UI (toast / banner)
             print("❌ Claim failed for \(row.id): \(error)")
         }
     }
