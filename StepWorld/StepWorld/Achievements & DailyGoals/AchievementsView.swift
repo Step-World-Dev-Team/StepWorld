@@ -9,7 +9,9 @@ import SwiftUI
 struct AchievementsView: View {
     var onClose: (() -> Void)? = nil   
     
+    //@EnvironmentObject private var map: MapManager
     @StateObject private var viewModel = AchievementsViewModel()
+    
     
     private let border: CGFloat = 20
     private let cornerSafeMargin: CGFloat = 2
@@ -61,7 +63,8 @@ struct AchievementsView: View {
                         .padding(.top, 12)
                 }
                 
-               
+
+                
                 ScrollView {
                     VStack(spacing: 10) {
                         if viewModel.rows.isEmpty && !viewModel.isLoading {

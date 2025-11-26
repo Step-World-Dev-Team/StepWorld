@@ -13,6 +13,8 @@ import Combine
 @MainActor
 final class ProfileViewModel: ObservableObject {
     
+    @EnvironmentObject private var map: MapManager
+    
     @Published private(set) var user: DBUser? = nil
     @Published private(set) var balance: Int? = nil
     @Published private(set) var todaySteps: Int? = nil
@@ -123,16 +125,17 @@ struct ProfileView: View {
                            value: (viewModel.balance?.formattedString() ?? "--")
                 )
                     .padding(.bottom, 5)
-                /*
-                ProfileWidget(backgroundImageName: "AchievementWidget",
-                           title: "Achievements",
-                           value: nil)
-                */
-                ProfileWidget(backgroundImageName: "StepGoalWidget",
-                           title: "Daily Goal:",
-                           value: stepProgressText())
-                    .padding(.top, 5)
-                    .padding(.bottom, 5)
+                
+                /*Text("DAILY GOAL")
+                    .font(.custom("Press Start 2P", size: 20))
+                    .foregroundColor(.black)
+                    .padding(.top, 10)
+                 */
+                DailyGoalRowView(
+                    progress: viewModel.todaySteps ?? 0,
+                    target: viewModel.dailyStepGoal
+                )
+                .padding(.vertical, 8)
                 
                 
                 Spacer()
