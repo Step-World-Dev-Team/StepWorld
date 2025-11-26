@@ -13,15 +13,22 @@ import Combine
 @MainActor
 final class ProfileViewModel: ObservableObject {
     
+    @EnvironmentObject private var map: MapManager
+    
     @Published private(set) var user: DBUser? = nil
     @Published private(set) var balance: Int? = nil
     @Published private(set) var todaySteps: Int? = nil
+    
+    // ✅ NEW
+    @Published private(set) var difficulty: Difficulty = .easy
+    @Published private(set) var dailyStepGoal: Int = Difficulty.easy.dailyStepGoal
     
     // attempts to pull user data from authentication & user managers
     func loadCurrentUser() async throws {
         do {
             let authDataResult = try AuthenticationManager.shared.getAuthenticatedUser()
             self.user = try await UserManager.shared.getUser(userId: authDataResult.uid)
+            let uid = authDataResult.uid
             
             let coins = try await UserManager.shared.getBalance(userId: authDataResult.uid)
             self.balance = coins
@@ -31,6 +38,11 @@ final class ProfileViewModel: ObservableObject {
             } else {
                 self.todaySteps = 0
             }
+            // ✅ NEW: fetch difficulty and set daily goal
+            let diff = try await UserManager.shared.getDifficulty(userId: uid) ?? .easy
+            self.difficulty = diff
+            self.dailyStepGoal = diff.dailyStepGoal
+            
         } catch {
             print("Failed to load profile: \(error)")
         }
@@ -49,6 +61,14 @@ struct ProfileView: View {
     // creates inset of screen for borders to show
     private let border: CGFloat = 20
     private let cornerSafeMargin: CGFloat = 2
+    
+    private func stepProgressText() -> String {
+        guard let steps = viewModel.todaySteps else { return "--" }
+        let goal = viewModel.dailyStepGoal
+
+        return "\(steps.formattedString()) / \(goal.formattedString())"
+
+    }
     
     var body: some View {
         ZStack {
@@ -87,28 +107,40 @@ struct ProfileView: View {
                     .padding(.top, 10)
                 
                 if let user = viewModel.user {
-                    StatWidget(backgroundImageName: "NameWidget",
+                    ProfileWidget(backgroundImageName: "NameWidget",
                                title: "Name:",
                                value: (user.name?.isEmpty == false ? user.name! : "Player"))
                         .padding(.top, 30)
                 }
                 
-                StatWidget(backgroundImageName: "StepWidget",
+                ProfileWidget(backgroundImageName: "StepWidget",
                            title: "Steps:",
                            value: (viewModel.todaySteps?.formattedString() ?? "--"))
                     .padding(.top, 5)
                     .padding(.bottom, 5)
                 
-                StatWidget(
+                ProfileWidget(
                     backgroundImageName: "CoinsWidget",
                            title: "Coins:",
                            value: (viewModel.balance?.formattedString() ?? "--")
                 )
                     .padding(.bottom, 5)
                 
-                StatWidget(backgroundImageName: "AchievementWidget",
-                           title: "Achievements",
-                           value: nil)
+                /*Text("DAILY GOAL")
+                    .font(.custom("Press Start 2P", size: 20))
+                    .foregroundColor(.black)
+                    .padding(.top, 10)
+                 */
+                Text("DAILY GOAL")
+                    .font(.custom("Press Start 2P", size: 20))
+                    .foregroundColor(.black)
+                    .padding(.top, 10)
+                DailyGoalRowView(
+                    progress: viewModel.todaySteps ?? 0,
+                    target: viewModel.dailyStepGoal
+                )
+                .padding(.vertical, 8)
+                
                 
                 Spacer()
             }
