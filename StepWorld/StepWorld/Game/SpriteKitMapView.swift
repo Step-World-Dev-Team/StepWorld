@@ -346,6 +346,8 @@ struct SpriteKitMapView: View {
 }
 
 #Preview {
+    //this comment is for testing purposes
+    //SpriteKitMapView(changeToShow: (steps: 2000, balance: 150))
     SpriteKitMapView()
         .environmentObject(MapManager())
         .environmentObject(StepManager())
