@@ -87,26 +87,26 @@ struct ProfileView: View {
                     .padding(.top, 10)
                 
                 if let user = viewModel.user {
-                    StatWidget(backgroundImageName: "NameWidget",
+                    ProfileWidget(backgroundImageName: "NameWidget",
                                title: "Name:",
                                value: (user.name?.isEmpty == false ? user.name! : "Player"))
                         .padding(.top, 30)
                 }
                 
-                StatWidget(backgroundImageName: "StepWidget",
+                ProfileWidget(backgroundImageName: "StepWidget",
                            title: "Steps:",
                            value: (viewModel.todaySteps?.formattedString() ?? "--"))
                     .padding(.top, 5)
                     .padding(.bottom, 5)
                 
-                StatWidget(
+                ProfileWidget(
                     backgroundImageName: "CoinsWidget",
                            title: "Coins:",
                            value: (viewModel.balance?.formattedString() ?? "--")
                 )
                     .padding(.bottom, 5)
                 
-                StatWidget(backgroundImageName: "AchievementWidget",
+                ProfileWidget(backgroundImageName: "AchievementWidget",
                            title: "Achievements",
                            value: nil)
                 
