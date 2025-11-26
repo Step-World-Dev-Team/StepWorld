@@ -306,6 +306,26 @@ struct SpriteKitMapView: View {
                 .zIndex(100)
             }
             
+            
+            // TODO: Remove button and add logic to activate quake when user didn't walk enough
+            ZStack(alignment: .topLeading) {
+                Button {
+                    (map.scene as? GameScene)?.triggerEarthquake(duration: 3.0, breakProbability: 1.0)
+                        } label: {
+                            Text("Quake!")
+                                    .font(.caption)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.black.opacity(0.6))
+                                    .foregroundColor(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, 20)
+                            .padding(.leading, 20)
+            }
+
+            
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
@@ -322,6 +342,7 @@ struct SpriteKitMapView: View {
             }
             Task {
                 await map.refreshNow()
+                await map.checkAndApplyDailyDisaster()
             }
         }
         
