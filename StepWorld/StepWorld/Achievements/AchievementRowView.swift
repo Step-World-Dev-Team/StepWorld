@@ -20,7 +20,7 @@ struct AchievementRowView: View {
     
     var body: some View {
         ZStack {
-            // BACKGROUND PANEL – you can swap this for an image if you want
+        
             RoundedRectangle(cornerRadius: 6)
                 .fill(pixelCream)
                 .overlay(
@@ -77,7 +77,7 @@ struct AchievementRowView: View {
                 
                 Spacer()
                 
-                // RIGHT: status (Claim / Claimed / Locked)
+                
                 statusView
             }
             .padding(.horizontal, 10)

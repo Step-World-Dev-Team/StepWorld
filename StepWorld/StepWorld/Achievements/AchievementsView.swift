@@ -7,18 +7,16 @@
 import SwiftUI
 
 struct AchievementsView: View {
-    var onClose: (() -> Void)? = nil   // so SpriteKitMapView can close it
+    var onClose: (() -> Void)? = nil   
     
     @StateObject private var viewModel = AchievementsViewModel()
     
-    // Same vibe as ProfileView
     private let border: CGFloat = 20
     private let cornerSafeMargin: CGFloat = 2
     
     var body: some View {
         ZStack {
-            // Use your own background art here
-            Image("ProfileViewBackground")       // or "AchievementsViewBackground"
+            Image("ProfileViewBackground")
                 .interpolation(.none)
                 .antialiased(false)
                 .resizable()
@@ -28,7 +26,7 @@ struct AchievementsView: View {
                 .padding(.bottom, 50)
             
             VStack(spacing: 0) {
-                // Close button row (top-right) – same as ProfileView
+             
                 HStack {
                     Spacer()
                     Button {
@@ -63,7 +61,7 @@ struct AchievementsView: View {
                         .padding(.top, 12)
                 }
                 
-                // The scrollable area inside the “walls”
+               
                 ScrollView {
                     VStack(spacing: 10) {
                         if viewModel.rows.isEmpty && !viewModel.isLoading {
@@ -76,12 +74,10 @@ struct AchievementsView: View {
                                 AchievementRowView(row: row) {
                                     await handleClaim(for: row)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .center)   // center the card
+                                .frame(maxWidth: .infinity, alignment: .center)
                             }
                         }
                     }
-                    // 👇 This padding keeps the rows *inside* the inner frame,
-                    // similar to how Name/Steps/etc are inside the ProfileView walls.
                     .padding(.horizontal, 40)
                     .padding(.top, 16)
                     .padding(.bottom, 30)
