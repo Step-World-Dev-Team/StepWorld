@@ -238,22 +238,25 @@ final class MapManager: ObservableObject {
     func purchaseSkin(baseType: String, skin: String, price: Int, userId: String) async {
         let key = "\(baseType)#\(skin)"
         guard !inventory.ownedSkins.contains(key) else { return }
+        
         do {
-            // You can keep this spend locally for now; or switch to purchaseProduct if your backend has a SKU.
+            // Spend coins
             _ = try await UserManager.shared.spend(userId: userId, amount: price)
+            
+            // Update local state
             inventory.ownedSkins.insert(key)
             scene.unlockSkin(baseType: baseType, skin: skin)
             equipped[baseType] = skin
             await persistSkins()
             
-            // Achievement: First Skin
+            // 🔹 Achievement for first skin
             await AchievementsManager.shared.registerFirstSkinIfNeeded(userId: userId)
             print("✅ Purchased skin \(key)")
         } catch {
             print("❌ Purchase skin failed: \(error.localizedDescription)")
         }
     }
-    
+
     func equipSkin(baseType: String, skin: String) {
         let key = "\(baseType)#\(skin)"
         guard inventory.ownedSkins.contains(key) else { return }
