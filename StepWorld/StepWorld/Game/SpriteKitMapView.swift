@@ -26,6 +26,9 @@ struct SpriteKitMapView: View {
     
     @State private var changeToShow: (steps: Int, balance: Int)? = nil
     
+    @State private var showDailyGoalBanner = false
+    @State private var lastStepCount: Int = 0
+    
     @StateObject private var shopVM = ShopViewModel()
     
     private var isModalPresented: Bool { showProfile || showSettings || showShop || showAchievements
@@ -174,6 +177,16 @@ struct SpriteKitMapView: View {
                 .zIndex(250)
             }
             
+            if showDailyGoalBanner {
+                            DailyGoalBannerView(
+                                steps: map.todaySteps,
+                                goal: map.dailyStepGoal
+                            ) {
+                                showDailyGoalBanner = false
+                            }
+                            .zIndex(240)
+                        }
+            
             if isModalPresented {
                 ZStack {
                     // Dim fades independently
@@ -321,26 +334,28 @@ struct SpriteKitMapView: View {
                 }
                 .zIndex(100)
             }
-            
-            
-            // TODO: Remove button and add logic to activate quake when user didn't walk enough
-            ZStack(alignment: .topLeading) {
-                Button {
-                    (map.scene as? GameScene)?.triggerEarthquake(duration: 3.0, breakProbability: 1.0)
-                        } label: {
-                            Text("Quake!")
-                                    .font(.caption)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.black.opacity(0.6))
-                                    .foregroundColor(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.top, 20)
-                            .padding(.leading, 20)
-            }
+                
 
+            // TODO: Remove button and add logic to activate quake when user didn't walk enough
+            
+            ZStack(alignment: .topLeading) {
+                 Button {
+                     (map.scene as? GameScene)?.triggerEarthquake(duration: 3.0, breakProbability: 1.0)
+                 } label: {
+                     Text("Quake!")
+                         .font(.caption)
+                         .padding(.horizontal, 10)
+                         .padding(.vertical, 6)
+                         .background(Color.black.opacity(0.6))
+                         .foregroundColor(.white)
+                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                 }
+                 .buttonStyle(.plain)
+                 .padding(.top, 20)
+                 .padding(.leading, 20)
+             
+            }
+            .ignoresSafeArea(edges: .top)
             
         }
         .navigationBarBackButtonHidden(true)
@@ -363,6 +378,19 @@ struct SpriteKitMapView: View {
                 tryShowNextAchievementBanner()
             }
         }
+        .onChange(of: map.todaySteps) { newSteps in
+            let goal = map.dailyStepGoal
+            guard goal > 0 else { return }
+
+            // Only trigger when we cross the threshold (not every update above goal)
+            if lastStepCount < goal && newSteps >= goal && !showDailyGoalBanner {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                    showDailyGoalBanner = true
+                }
+            }
+
+            lastStepCount = newSteps
+        }
         .onAppear {
             if map.scene.userId == nil {
                 map.scene.userId = map.userId ?? Auth.auth().currentUser?.uid
@@ -371,8 +399,9 @@ struct SpriteKitMapView: View {
                 await map.refreshNow()
                 await map.checkAndApplyDailyDisaster()
             }
+            
+            lastStepCount = map.todaySteps
         }
-        
     }
     
     // MARK: Achievement Pop-up Functions

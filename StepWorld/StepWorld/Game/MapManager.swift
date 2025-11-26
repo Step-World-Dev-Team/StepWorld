@@ -283,35 +283,54 @@ final class MapManager: ObservableObject {
     // MARK: Disaster Function
     func checkAndApplyDailyDisaster(now: Date = Date()) async {
         guard let uid = scene.userId ?? Auth.auth().currentUser?.uid else { return }
-        // "Yesterday" in user’s timezone
+        
         let cal = Calendar.current
         guard let yesterday = cal.date(byAdding: .day, value: -1, to: now) else { return }
         
         do {
-            if let m = try await UserManager.shared.getDailyMetrics(userId: uid, date: yesterday) {
-                let already = m.disasterApplied ?? false
-                if m.stepCount < 3000 && !already {
-                    await MainActor.run { [weak self] in
-                        self?.scene.applyEarthquakeDamage()
-                    }
-                    // Persist map & set the flag so we don't re-apply
-                    try await saveMapForCurrentUser()
-                    try await UserManager.shared.setDisasterApplied(userId: uid, date: yesterday, applied: true)
-                    print("🌪️ Disaster applied for \(UserManager.dateId(for: yesterday))")
+            // Fetch yesterday's metrics AND the user's difficulty in parallel
+            async let metricsAsync = UserManager.shared.getDailyMetrics(userId: uid, date: yesterday)
+            async let diffAsync    = UserManager.shared.getDifficulty(userId: uid)
+            
+            let (metrics, diff) = try await (metricsAsync, diffAsync)
+            
+            guard let m = metrics else {
+                // No metrics for yesterday → treat as 0 steps if you want:
+                // let goal = (diff ?? .easy).dailyStepGoal
+                // if goal > 0 { ... quake ... }
+                return
+            }
+            
+            let already = m.disasterApplied ?? false
+            let difficulty = diff ?? .easy
+            let goal = difficulty.dailyStepGoal
+            
+            // 🔥 If yesterday's steps were below the goal and we haven't already quaked
+            if m.stepCount < goal && !already {
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
+                    
+                    // Use the full earthquake with shake + building damage
+                    self.scene.triggerEarthquake(
+                        duration: 3.0,
+                        breakProbability: 0.4,     // tweak: 0.0–1.0
+                        affectAlreadyBroken: false // only hit intact buildings
+                    )
                 }
-            } else {
-                // No doc for yesterday? Treat as 0 steps → disaster (optional)
-                // If you want that behavior, uncomment below:
-                /*
-                 await MainActor.run { [weak self] in self?.scene.applyEarthquakeDamage() }
-                 try await saveMapForCurrentUser()
-                 try await UserManager.shared.setDisasterApplied(userId: uid, date: yesterday, applied: true)
-                 */
+                
+                // Save the new broken map + mark the disaster as applied
+                try await saveMapForCurrentUser()
+                try await UserManager.shared.setDisasterApplied(
+                    userId: uid,
+                    date: yesterday,
+                    applied: true
+                )
             }
         } catch {
             print("Disaster check failed:", error.localizedDescription)
         }
     }
+
     
     // MARK: Skin Persistency
     func persistSkins() async {

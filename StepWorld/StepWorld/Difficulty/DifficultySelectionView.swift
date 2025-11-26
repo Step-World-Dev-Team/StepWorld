@@ -39,7 +39,7 @@ enum Difficulty: String, CaseIterable, Identifiable {
         case .hard:   return "1 step = 0.5 coin"
         }
     }
-        // ✅ NEW: goal per difficulty
+ 
     var dailyStepGoal: Int {
             switch self {
             case .easy:   return 3_000
