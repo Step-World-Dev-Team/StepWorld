@@ -1336,6 +1336,14 @@ final class GameScene: SKScene {
         triggerMapChanged()
 
         print("🏠 Placed \(assetName) (level \(level)) on \(plot.userData?["plotName"] ?? "UnknownPlot")")
+        
+        // Achievement: first building
+        if let uid = userId ?? Auth.auth().currentUser?.uid {
+            Task {
+                await AchievementsManager.shared.registerFirstBuildingIfNeeded(userId: uid)
+            }
+        }
+        
         selectedPlot?.childNode(withName: "forSaleSign")?.removeFromParent()
 
     }

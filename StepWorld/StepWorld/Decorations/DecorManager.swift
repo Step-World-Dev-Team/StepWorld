@@ -5,6 +5,7 @@
 //  Created by Anali Cardoza on 11/7/25.
 //
 import SpriteKit
+import FirebaseAuth
 
 public final class DecorManager {
     
@@ -139,6 +140,15 @@ public final class DecorManager {
         scene.addChild(node)
         placed.append(node)
         
+        // Achievement - First Decor Item
+        if let gameScene = scene as? GameScene {
+            if let uid = gameScene.userId ?? Auth.auth().currentUser?.uid {
+                Task {
+                    await AchievementsManager.shared.registerFirstDecorIfNeeded(userId: uid)
+                }
+            }
+        }
+        
         // Cleanup placement state
         previewNode?.removeFromParent(); previewNode = nil
         placingType = nil
@@ -178,7 +188,7 @@ public final class DecorManager {
             placed.append(node)
         }
     }
-
+    
     private func pulseOnce(at position: CGPoint) {
         guard let scene = scene else { return }
         let ring = SKShapeNode(circleOfRadius: 20)
@@ -189,7 +199,7 @@ public final class DecorManager {
         ring.alpha = 0
         ring.zPosition = 999
         scene.addChild(ring)
-
+        
         let appear = SKAction.group([
             .fadeAlpha(to: 1.0, duration: 0.1),
             .scale(to: 1.2, duration: 0.1)

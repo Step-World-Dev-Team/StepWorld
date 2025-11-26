@@ -33,16 +33,6 @@ struct RootView: View {
                 SignInView()
             }
         }
-        //if new user, difficulty screen pops up
-        .fullScreenCover(isPresented: $showDifficultySelection) {
-                    DifficultySelectionView(
-                        userId: currentUserId ?? "",
-                        onFinished: {
-                        
-                            showDifficultySelection = false
-                        }
-                    )
-                }
         
         .onAppear {
             authHandle = Auth.auth().addStateDidChangeListener { _, user in
@@ -56,13 +46,15 @@ struct RootView: View {
                         
                         stepManager.userId = authed.uid
                         mapManager.userId  = authed.uid   // propagates to scene via didSet, if you added that
+                        
                         try? await mapManager.loadFromFirestoreIfAvailable()
                         stepManager.syncToday()          // HealthKit → Firestore
                         await mapManager.refreshNow()    // Firestore → UI
-                        // 🔹 Check if this user has picked a difficulty on this device
-                        let key = "hasChosenDifficulty.\(uid)"
-                        let hasChosen = UserDefaults.standard.bool(forKey: key)
-                        showDifficultySelection = !hasChosen
+                        
+                        // Server-side difficulty check
+                        let diff = try? await UserManager.shared.getDifficulty(userId: uid)
+                        showDifficultySelection = (diff == nil)
+                       
                         
                         // trigger pop-up
                         let delta = mapManager.pendingChangeSinceLastSeen()
@@ -93,6 +85,11 @@ struct RootView: View {
                 Auth.auth().removeStateDidChangeListener(h)
                 authHandle = nil
             }
+        }
+        .fullScreenCover(isPresented: $showDifficultySelection) {
+            DifficultySelectionView(onFinished: {
+                showDifficultySelection = false
+            })
         }
     }
 }
