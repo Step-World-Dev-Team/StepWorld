@@ -20,6 +20,9 @@ struct RootView: View {
     @State private var isSignedIn = false
     @State private var authHandle: AuthStateDidChangeListenerHandle?
     
+    @State private var showDifficultySelection = false
+    @State private var currentUserId: String?
+    
     var body: some View {
         Group {
             if isSignedIn {
@@ -30,18 +33,36 @@ struct RootView: View {
                 SignInView()
             }
         }
+        //if new user, difficulty screen pops up
+        .fullScreenCover(isPresented: $showDifficultySelection) {
+                    DifficultySelectionView(
+                        userId: currentUserId ?? "",
+                        onFinished: {
+                        
+                            showDifficultySelection = false
+                        }
+                    )
+                }
         
         .onAppear {
             authHandle = Auth.auth().addStateDidChangeListener { _, user in
                 Task { @MainActor in
                     let signedIn = (user != nil)
                     isSignedIn = signedIn
+                    
                     if signedIn, let authed = try? AuthenticationManager.shared.getAuthenticatedUser() {
+                        let uid = authed.uid
+                        currentUserId = uid
+                        
                         stepManager.userId = authed.uid
                         mapManager.userId  = authed.uid   // propagates to scene via didSet, if you added that
                         try? await mapManager.loadFromFirestoreIfAvailable()
                         stepManager.syncToday()          // HealthKit → Firestore
                         await mapManager.refreshNow()    // Firestore → UI
+                        // 🔹 Check if this user has picked a difficulty on this device
+                        let key = "hasChosenDifficulty.\(uid)"
+                        let hasChosen = UserDefaults.standard.bool(forKey: key)
+                        showDifficultySelection = !hasChosen
                         
                         // trigger pop-up
                         let delta = mapManager.pendingChangeSinceLastSeen()
@@ -59,6 +80,9 @@ struct RootView: View {
                         stepManager.userId = nil
                         mapManager.userId  = nil
                         mapManager.scene.userId = nil
+                        currentUserId = nil
+                        showDifficultySelection = false
+                        
                     }
                     print("👂 Auth state changed → signedIn=\(signedIn)")
                 }
