@@ -18,7 +18,11 @@ struct SpriteKitMapView: View {
     @State private var showProfile = false
     @State private var showSettings = false
     @State private var showShop = false
+    
+    // Achievements Listeners
     @State private var showAchievements = false
+    @State private var showAchievementBanner = false
+    @State private var pendingAchievements: [String] = []
     
     @State private var changeToShow: (steps: Int, balance: Int)? = nil
     
@@ -136,6 +140,8 @@ struct SpriteKitMapView: View {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                             changeToShow = nil
                         }
+                        // After change popup is hidden, show any pending achievements
+                        tryShowNextAchievementBanner()
                     } label: {
                         Text("Got it")
                             .font(.headline)
@@ -156,6 +162,16 @@ struct SpriteKitMapView: View {
                 )
                 .transition(.scale.combined(with: .opacity))
                 .zIndex(200) // higher than modal
+            }
+            
+            // 🔔 Achievement banner (after change pop-up)
+            if showAchievementBanner, let currentId = pendingAchievements.first {
+                AchievementBannerView(
+                    message: "You completed an achievement!"
+                ) {
+                    handleAchievementBannerDismissed()
+                }
+                .zIndex(250)
             }
             
             if isModalPresented {
@@ -336,6 +352,17 @@ struct SpriteKitMapView: View {
                 self.changeToShow = (s, b)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .achievementUnlocked)) { note in
+            let id = note.userInfo?["id"] as? String ?? "achievement"
+            
+            // Queue the achievement
+            pendingAchievements.append(id)
+            
+            // Only show banner immediately if the stats popup is NOT on-screen
+            if changeToShow == nil {
+                tryShowNextAchievementBanner()
+            }
+        }
         .onAppear {
             if map.scene.userId == nil {
                 map.scene.userId = map.userId ?? Auth.auth().currentUser?.uid
@@ -347,6 +374,28 @@ struct SpriteKitMapView: View {
         }
         
     }
+    
+    // MARK: Achievement Pop-up Functions
+        func tryShowNextAchievementBanner() {
+            guard changeToShow == nil else { return }
+            guard !showAchievementBanner else { return }
+            guard !pendingAchievements.isEmpty else { return }
+            
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                showAchievementBanner = true
+            }
+        }
+
+        func handleAchievementBannerDismissed() {
+            if !pendingAchievements.isEmpty {
+                pendingAchievements.removeFirst()
+            }
+            
+            showAchievementBanner = false
+            
+            tryShowNextAchievementBanner()
+        }
+    
 }
 
 #Preview {
