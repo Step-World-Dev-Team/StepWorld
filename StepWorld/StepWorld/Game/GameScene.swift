@@ -935,8 +935,11 @@ final class GameScene: SKScene {
         
         //Changed availableBuildings.count to allowed.count
         let buttonsBlockH = CGFloat(allowed.count) * (menuButtonH + menuGap) - menuGap
-        let panelH = menuHeaderPad + titleToListGap + buttonsBlockH + menuFooterPad
+        let infoLinesCount = allowed.count
+        let infoBlockH: CGFloat = CGFloat(infoLinesCount) * 22 + 12
+        let panelH = menuHeaderPad + titleToListGap + infoBlockH + 16 + buttonsBlockH + menuFooterPad
         let panelSize = CGSize(width: panelWidth, height: panelH)
+
 
         // Panel
         let panel = SKSpriteNode(imageNamed: panelSprite)
@@ -953,9 +956,42 @@ final class GameScene: SKScene {
         title.fontColor = .label
         title.position = CGPoint(x: 0, y: panelSize.height/2 - 60)
         menu.addChild(title)
+        
+        // --- Info preview box for available buildings ---
+        let infoBG = SKShapeNode(
+            rectOf: CGSize(width: panelWidth - 40, height: infoBlockH),
+            cornerRadius: 10
+        )
+        infoBG.fillColor = .clear
+        infoBG.strokeColor = .clear
+        infoBG.zPosition = 1
+        infoBG.position = CGPoint(x: 0, y: title.position.y - 32)
+        menu.addChild(infoBG)
+
+        // One line per allowed building: "House: Cozy starter home."
+        let lineSpacing: CGFloat = 20
+        let totalHeight = CGFloat(allowed.count - 1) * lineSpacing
+
+        for (index, name) in allowed.enumerated() {
+            let base = baseName(from: name)                // you already have baseName(from:)
+            let preview = buildPreviewDescription(for: base)
+
+            let label = SKLabelNode(text: "\(base): \(preview)")
+            label.fontName = "PressStart2P-Regular"
+            label.fontSize = 12
+            label.fontColor = .black
+            label.horizontalAlignmentMode = .center
+            label.verticalAlignmentMode = .center
+            label.zPosition = 2
+
+            let lineY = infoBG.position.y + totalHeight/2 - CGFloat(index) * lineSpacing
+            label.position = CGPoint(x: 0, y: lineY)
+
+            menu.addChild(label)
+        }
 
         // Buildings list
-        var y = panelSize.height/2 - menuHeaderPad - titleToListGap - menuButtonH/2
+        var y = infoBG.position.y - infoBlockH/2 - 16 - menuButtonH/2
         for name in allowed { // Changed availableBuildings to allowed
             let btn = buttonNode(title: name, actionName: "build:\(name)",
                                  size: CGSize(width: menuButtonW, height: menuButtonH))
@@ -1175,6 +1211,7 @@ final class GameScene: SKScene {
             infoBG.zPosition = 1
             menu.addChild(infoBG)
 
+        
             // Title (Lv info)
             let infoTitle = SKLabelNode(text: info.title)
             infoTitle.fontName = "PressStart2P-Regular"
@@ -1494,6 +1531,18 @@ final class GameScene: SKScene {
     // separates the building name from the full asset Name
     private func baseName(from assetName: String) -> String {
         return assetName.components(separatedBy: "_").first ?? assetName
+    }
+    private func buildPreviewDescription(for baseType: String) -> String {
+        switch baseType {
+        case "House":
+            return "Cost $200"
+        case "Barn":
+            return "Cost $300"
+        case "Farm":
+            return "Grows crops to earn more coins."
+        default:
+            return "A new building for your town."
+        }
     }
     // MARK: - Texture name resolver
     
