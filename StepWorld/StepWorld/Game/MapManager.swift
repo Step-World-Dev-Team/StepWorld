@@ -15,6 +15,10 @@ final class MapManager: ObservableObject {
     @Published var balance: Int = 0
     @Published var todaySteps: Int = 0
     
+    // ✅ NEW
+    @Published var difficulty: Difficulty = .easy
+    @Published var dailyStepGoal: Int = Difficulty.easy.dailyStepGoal
+    
     var scene: GameScene
     private var pendingSave: DispatchWorkItem?
     
@@ -102,11 +106,19 @@ final class MapManager: ObservableObject {
                 return currentBalance // ✅ safe captured value
             }
         }()
+        async let diff: Difficulty? = {
+              do {
+                  return try await UserManager.shared.getDifficulty(userId: uid)
+              } catch {
+                  return nil
+              }
+          }()
         
-        let (s, b) = await (steps, coins)
+        let (s, b, d) = await (steps, coins, diff)
         await MainActor.run {
             self.todaySteps = s
             self.balance = b
+            self.applyDifficulty(d)
         }
     }
     
@@ -191,10 +203,15 @@ final class MapManager: ObservableObject {
             do { return try await UserManager.shared.getBalance(userId: uid) }
             catch { return currentBalance }   // ⬅️ use snapshot
         }()
+        async let diff: Difficulty? = {
+                do { return try await UserManager.shared.getDifficulty(userId: uid) }
+                catch { return nil }
+            }()
         
-        let (s, b) = await (steps, coins)
+        let (s, b, d) = await (steps, coins, diff)
         self.todaySteps = s
         self.balance = b
+        self.applyDifficulty(d)
         print("ATTEMPTED REFRESH-NOW")
     }
     // MARK: - Client Side inventory + purchase/equip
@@ -303,5 +320,11 @@ final class MapManager: ObservableObject {
         defaults.set(balance,    forKey: kLastSeenBalance)
         defaults.set(Date().timeIntervalSince1970, forKey: kLastSeenAt)
     }
+    //MARK: Difficulty Helpers
+    private func applyDifficulty(_ diff: Difficulty?) {
+           let resolved = diff ?? .easy
+           difficulty = resolved
+           dailyStepGoal = resolved.dailyStepGoal
+       }
     
 }

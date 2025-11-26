@@ -39,7 +39,17 @@ enum Difficulty: String, CaseIterable, Identifiable {
         case .hard:   return "1 step = 0.5 coin"
         }
     }
+        // ✅ NEW: goal per difficulty
+    var dailyStepGoal: Int {
+            switch self {
+            case .easy:   return 3_000
+            case .medium: return 6_000
+            case .hard:   return 10_000
+        }
+        
+    }
 }
+
 
 struct DifficultySelectionView: View {
     var onFinished: (() -> Void)? = nil
