@@ -321,10 +321,10 @@ struct SpriteKitMapView: View {
                     (map.scene as? GameScene)?.triggerEarthquake(duration: 3.0, breakProbability: 1.0)
                 } label: {
                     Text("Quake!")
-                        .font(.caption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.black.opacity(0.6))
+                        .font(.custom("Press Start 2P", size: 13))
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 16)
+                        .background(Color.red.opacity(0.9))
                         .foregroundColor(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
@@ -332,6 +332,8 @@ struct SpriteKitMapView: View {
                 .padding(.top, 20)
                 .padding(.leading, 20)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            //.ignoresSafeArea()
             
             
         }
