@@ -48,14 +48,14 @@ struct RootView: View {
                         mapManager.userId  = authed.uid   // propagates to scene via didSet, if you added that
                         
                         try? await mapManager.loadFromFirestoreIfAvailable()
-                        stepManager.syncToday()          // HealthKit → Firestore
+                        await stepManager.syncToday()          // HealthKit → Firestore
                         await mapManager.refreshNow()    // Firestore → UI
                         
                         // Server-side difficulty check
                         let diff = try? await UserManager.shared.getDifficulty(userId: uid)
                         showDifficultySelection = (diff == nil)
                        
-                        
+                       /*
                         // trigger pop-up
                         let delta = mapManager.pendingChangeSinceLastSeen()
                         if delta.steps != 0 || delta.balance != 0 {
@@ -67,7 +67,7 @@ struct RootView: View {
                                     "balance": delta.balance
                                 ]
                             )
-                        }
+                        }*/
                     } else {
                         stepManager.userId = nil
                         mapManager.userId  = nil

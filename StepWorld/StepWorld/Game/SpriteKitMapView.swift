@@ -25,6 +25,18 @@ struct SpriteKitMapView: View {
     
     private var isModalPresented: Bool { showProfile || showSettings || showShop}
     
+    private func maybeShowPopup() {
+        let delta = map.pendingChangeSinceLastSeen()
+        
+        guard (delta.steps != 0 ) else { return }
+        // Avoid overwriting an already-visible popup
+        guard changeToShow == nil else { return }
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+            changeToShow = delta
+        }
+    }
+    
     var body: some View {
         ZStack {
             SpriteView(scene: map.scene)
@@ -108,51 +120,51 @@ struct SpriteKitMapView: View {
                     .zIndex(1)
                 }
             if let delta = changeToShow, (delta.steps != 0 || delta.balance != 0) {
-                       // Optional: block touches behind the popup
-                       Color.black.opacity(0.001)
-                           .ignoresSafeArea()
-                           .zIndex(150)
-
-                       VStack(spacing: 14) {
-                           Text("What’s New")
-                               .font(.custom("Press Start 2P", size: 16))
-                               .padding(.top, 12)
-
-                           if delta.steps != 0 {
-                               Text("\(delta.steps >= 0 ? "▲" : "▼") Steps: \(delta.steps)")
-                                   .font(.headline)
-                           }
-                           if delta.balance != 0 {
-                               Text("\(delta.balance >= 0 ? "▲" : "▼") Balance: \(delta.balance)")
-                                   .font(.headline)
-                           }
-
-                           Button {
-                               map.markStatsAsSeenNow()
-                               withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                                   changeToShow = nil
-                               }
-                           } label: {
-                               Text("Got it")
-                                   .font(.headline)
-                                   .foregroundColor(.white)
-                                   .padding(.horizontal, 18)
-                                   .padding(.vertical, 10)
-                                   .background(Color.black.opacity(0.8))
-                                   .cornerRadius(10)
-                           }
-                           .padding(.bottom, 12)
-                       }
-                       .padding()
-                       .frame(maxWidth: 320)
-                       .background(
-                           RoundedRectangle(cornerRadius: 18)
-                               .fill(Color(.systemBackground))
-                               .shadow(radius: 12)
-                       )
-                       .transition(.scale.combined(with: .opacity))
-                       .zIndex(200) // higher than modal
-                   }
+                // Optional: block touches behind the popup
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .zIndex(150)
+                
+                VStack(spacing: 14) {
+                    Text("What’s New")
+                        .font(.custom("Press Start 2P", size: 16))
+                        .padding(.top, 12)
+                    
+                    if delta.steps != 0 {
+                        Text("\(delta.steps >= 0 ? "▲" : "▼") Steps: \(delta.steps)")
+                            .font(.headline)
+                    }
+                    if delta.balance != 0 {
+                        Text("\(delta.balance >= 0 ? "▲" : "▼") Balance: \(delta.balance)")
+                            .font(.headline)
+                    }
+                    
+                    Button {
+                        map.markStatsAsSeenNow()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                            changeToShow = nil
+                        }
+                    } label: {
+                        Text("Got it")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 10)
+                            .background(Color.black.opacity(0.8))
+                            .cornerRadius(10)
+                    }
+                    .padding(.bottom, 12)
+                }
+                .padding()
+                .frame(maxWidth: 320)
+                .background(
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(Color(.systemBackground))
+                        .shadow(radius: 12)
+                )
+                .transition(.scale.combined(with: .opacity))
+                .zIndex(200) // higher than modal
+            }
             
             if isModalPresented {
                 ZStack {
@@ -167,7 +179,7 @@ struct SpriteKitMapView: View {
                                 showProfile = false
                                 showSettings = false
                                 showShop = false
-
+                                
                             }
                         }
                     
@@ -180,7 +192,7 @@ struct SpriteKitMapView: View {
                                 items: {
                                     // 1) Server items from Firestore (decor/buildings)
                                     let buildingItems: [ShopItem] = shopVM.items
-
+                                    
                                     // 2) Local skin SKUs (no backend change needed today)
                                     let skinEntries: [ShopItem] = [
                                         .init(type: "Barn#Blue",   price: 150, iconName: "BlueBarn_L1"),
@@ -188,7 +200,7 @@ struct SpriteKitMapView: View {
                                         .init(type: "Barn#Default", price: 0,   iconName: "Barn_L1"),
                                         .init(type: "House#Default",   price: 0, iconName: "House_L1"),
                                     ]
-
+                                    
                                     return buildingItems + skinEntries
                                 }(),
                                 onClose: {
@@ -199,13 +211,13 @@ struct SpriteKitMapView: View {
                                 onBuy: { item in
                                     if let scene = map.scene as? GameScene,
                                        let uid = map.userId ?? step.userId {
-
+                                        
                                         if item.type.contains("#") {
                                             // Treat "Barn#Blue" / "House#Candy" as SKIN SKUs
                                             let parts = item.type.split(separator: "#")
                                             let baseType = String(parts[0])
                                             let skin = String(parts[1])
-
+                                            
                                             // If already owned, equip; otherwise purchase+auto-equip
                                             if skin == "Default" {
                                                 map.equipDefault(baseType: baseType)
@@ -226,7 +238,7 @@ struct SpriteKitMapView: View {
                                                                                    userId: uid)
                                         }
                                     }
-
+                                    
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                         showShop = false
                                     }
@@ -252,34 +264,34 @@ struct SpriteKitMapView: View {
                             )
                             .task { await shopVM.load() }
                         } else if showProfile {
-                                ProfileView(onClose: {
-                                    Task {
-                                        await map.refreshNow()
-                                        print("Attempted refresh")
-                                    }
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                                        showProfile = false
-                                    }
-                                })
-                            } else if showSettings {
-                                SettingsView(onClose: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                            ProfileView(onClose: {
+                                Task {
+                                    await map.refreshNow()
+                                    print("Attempted refresh")
+                                }
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                    showProfile = false
+                                }
+                            })
+                        } else if showSettings {
+                            SettingsView(onClose: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                    showSettings = false
+                                }
+                            }, onSignOut: {
+                                Task { @MainActor in
+                                    do {
+                                        try AuthenticationManager.shared.signOutUser()   // ← this triggers the listener
+                                        map.userId = nil                                 // optional: clear local state
+                                        map.resetScene()
                                         showSettings = false
+                                        print("📤 signOut requested from SettingsView")
+                                    } catch {
+                                        print("❌ signOut failed: \(error)")
                                     }
-                                }, onSignOut: {
-                                    Task { @MainActor in
-                                        do {
-                                            try AuthenticationManager.shared.signOutUser()   // ← this triggers the listener
-                                            map.userId = nil                                 // optional: clear local state
-                                            map.resetScene()
-                                            showSettings = false
-                                            print("📤 signOut requested from SettingsView")
-                                        } catch {
-                                            print("❌ signOut failed: \(error)")
-                                        }
-                                    }
-                                })
-                            }
+                                }
+                            })
+                        }
                         }
                         .background(Color.clear)
                         .frame(
@@ -299,31 +311,31 @@ struct SpriteKitMapView: View {
             ZStack(alignment: .topLeading) {
                 Button {
                     (map.scene as? GameScene)?.triggerEarthquake(duration: 3.0, breakProbability: 1.0)
-                        } label: {
-                            Text("Quake!")
-                                    .font(.caption)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.black.opacity(0.6))
-                                    .foregroundColor(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.top, 20)
-                            .padding(.leading, 20)
+                } label: {
+                    Text("Quake!")
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.6))
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 20)
+                .padding(.leading, 20)
             }
-
+            
             
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .onReceive(NotificationCenter.default.publisher(for: .showChangePopup)) { note in
-            let s = (note.userInfo?["steps"] as? Int) ?? 0
-            let b = (note.userInfo?["balance"] as? Int) ?? 0
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                self.changeToShow = (s, b)
-            }
-        }
+        /*.onReceive(NotificationCenter.default.publisher(for: .showChangePopup)) { note in
+         let s = (note.userInfo?["steps"] as? Int) ?? 0
+         let b = (note.userInfo?["balance"] as? Int) ?? 0
+         withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+         self.changeToShow = (s, b)
+         }
+         }*/
         .onAppear {
             if map.scene.userId == nil {
                 map.scene.userId = map.userId ?? Auth.auth().currentUser?.uid
@@ -331,9 +343,15 @@ struct SpriteKitMapView: View {
             Task {
                 await map.refreshNow()
                 await map.checkAndApplyDailyDisaster()
+                maybeShowPopup()
             }
         }
-        
+        .onChange(of: map.todaySteps) { _ in
+            maybeShowPopup()
+        }
+        .onChange(of: map.balance) { _ in
+            maybeShowPopup()
+        }
     }
 }
 
