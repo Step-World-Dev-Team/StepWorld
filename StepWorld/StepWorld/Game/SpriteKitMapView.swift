@@ -54,7 +54,7 @@ struct SpriteKitMapView: View {
                                         showAchievements = true
                                     }
                                 } label: {
-                                    Image("home_icon")
+                                    Image("Achievement")
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 100, height: 100)

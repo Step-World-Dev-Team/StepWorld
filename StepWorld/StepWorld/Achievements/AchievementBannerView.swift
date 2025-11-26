@@ -16,15 +16,21 @@ struct AchievementBannerView: View {
         VStack {
             HStack {
                 // TODO: swap emoji for a pixel-art icon later
-                Text("🏆")
-                    .font(.title2)
+                Image("TrophyEmoji")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 26, height: 26)
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Achievement completed!")
-                        .font(.headline)
+                        .font(.custom("Press Start 2P", size: 12))
+                        .foregroundColor(Color(red: 0.180, green: 0.118, blue: 0.071))
+                    
                     Text(message)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(.custom("Press Start 2P", size: 9))
+                        .foregroundColor(Color(red: 0.180, green: 0.118, blue: 0.071).opacity(0.85))
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(3)
                 }
                 
                 Spacer()
@@ -38,13 +44,19 @@ struct AchievementBannerView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.systemBackground))
-                    .shadow(radius: 6)
-            )
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+            // soft cream color, slightly see-through so map shows behind
+                        .fill(Color(red: 1.0, green: 0.9725, blue: 0.9059).opacity(0.85))
+                        .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(red: 0.89, green: 0.49, blue: 0.30).opacity(0.8), lineWidth: 1.5)
+                        )
+                        .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
+                    )
+                        .padding(.horizontal, 16)
             
             Spacer()
         }
