@@ -19,18 +19,19 @@ struct SpriteKitMapView: View {
     @State private var showSettings = false
     @State private var showShop = false
     
+    // Achievements Listeners
+    @State private var showAchievements = false
+    @State private var showAchievementBanner = false
+    @State private var pendingAchievements: [String] = []
+    
     @State private var changeToShow: (steps: Int, balance: Int)? = nil
+    
+    @State private var showDailyGoalBanner = false
+    @State private var lastStepCount: Int = 0
     
     @StateObject private var shopVM = ShopViewModel()
     
-    
-    //This is for testing the "what's new" popup, I'll leave it here for now
-//    init(changeToShow: (steps: Int, balance: Int)? = nil) {
-//        _changeToShow = State(initialValue: changeToShow)
-//    }
-
-    
-    private var isModalPresented: Bool { showProfile || showSettings || showShop}
+    private var isModalPresented: Bool { showProfile || showSettings || showShop || showAchievements }
     
     private func maybeShowPopup() {
         let delta = map.pendingChangeSinceLastSeen()
@@ -63,9 +64,11 @@ struct SpriteKitMapView: View {
                             switch index {
                             case 1:
                                 Button {
-                                    print("Home tapped")
+                                    withAnimation {
+                                        showAchievements = true
+                                    }
                                 } label: {
-                                    Image("home_icon")
+                                    Image("Achievement")
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 100, height: 100)
@@ -127,7 +130,8 @@ struct SpriteKitMapView: View {
                     .zIndex(1)
                 }
             if let delta = changeToShow, (delta.steps != 0 || delta.balance != 0) {
-                       // Optional: block touches behind the popup
+                
+                // Optional: block touches behind the popup
                 ZStack {
                     
                     Image("build_menu_background")
@@ -138,7 +142,7 @@ struct SpriteKitMapView: View {
                         Text("What’s New")
                             .font(.custom("Press Start 2P", size: 16))
                             .padding(.top, 12)
-
+                        
                         if delta.steps != 0 {
                             Text("\(delta.steps >= 0 ? "▲" : "▼") Steps: \(delta.steps)")
                                 .font(.custom("Press Start 2P", size: 12))
@@ -147,7 +151,7 @@ struct SpriteKitMapView: View {
                             Text("\(delta.balance >= 0 ? "▲" : "▼") Balance: \(delta.balance)")
                                 .font(.custom("Press Start 2P", size: 12))
                         }
-
+                        
                         Button {
                             map.markStatsAsSeenNow()
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
@@ -170,9 +174,26 @@ struct SpriteKitMapView: View {
                     .transition(.scale.combined(with: .opacity))
                     .zIndex(200) // higher than modal
                 }
-
-                       
-                   }
+                // 🔔 Achievement banner (after change pop-up)
+                if showAchievementBanner, let currentId = pendingAchievements.first {
+                    AchievementBannerView(
+                        message: "You completed an achievement!"
+                    ) {
+                        handleAchievementBannerDismissed()
+                    }
+                    .zIndex(250)
+                }
+                
+                if showDailyGoalBanner {
+                    DailyGoalBannerView(
+                        steps: map.todaySteps,
+                        goal: map.dailyStepGoal
+                    ) {
+                        showDailyGoalBanner = false
+                    }
+                    .zIndex(240)
+                }
+            }
             
             if isModalPresented {
                 ZStack {
@@ -187,6 +208,7 @@ struct SpriteKitMapView: View {
                                 showProfile = false
                                 showSettings = false
                                 showShop = false
+                                showAchievements = false
                                 
                             }
                         }
@@ -299,8 +321,15 @@ struct SpriteKitMapView: View {
                                     }
                                 }
                             })
+                        } else if showAchievements {
+                            AchievementsView {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                    showAchievements = false
+                                }
+                            }
                         }
                         }
+                        
                         .background(Color.clear)
                         .frame(
                             width: min(g.size.width * 0.92, 500),
@@ -346,6 +375,37 @@ struct SpriteKitMapView: View {
          self.changeToShow = (s, b)
          }
          }*/
+        .onReceive(NotificationCenter.default.publisher(for: .showChangePopup)) { note in
+            let s = (note.userInfo?["steps"] as? Int) ?? 0
+            let b = (note.userInfo?["balance"] as? Int) ?? 0
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                self.changeToShow = (s, b)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .achievementUnlocked)) { note in
+            let id = note.userInfo?["id"] as? String ?? "achievement"
+            
+            // Queue the achievement
+            pendingAchievements.append(id)
+            
+            // Only show banner immediately if the stats popup is NOT on-screen
+            if changeToShow == nil {
+                tryShowNextAchievementBanner()
+            }
+        }
+        .onChange(of: map.todaySteps) { newSteps in
+            let goal = map.dailyStepGoal
+            guard goal > 0 else { return }
+            
+            // Only trigger when we cross the threshold (not every update above goal)
+            if lastStepCount < goal && newSteps >= goal && !showDailyGoalBanner {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                    showDailyGoalBanner = true
+                }
+            }
+            
+            lastStepCount = newSteps
+        }
         .onAppear {
             if map.scene.userId == nil {
                 map.scene.userId = map.userId ?? Auth.auth().currentUser?.uid
@@ -355,6 +415,8 @@ struct SpriteKitMapView: View {
                 await map.checkAndApplyDailyDisaster()
                 maybeShowPopup()
             }
+            
+            lastStepCount = map.todaySteps
         }
         .onChange(of: map.todaySteps) { _ in
             maybeShowPopup()
@@ -362,7 +424,30 @@ struct SpriteKitMapView: View {
         .onChange(of: map.balance) { _ in
             maybeShowPopup()
         }
+        
     }
+    
+    // MARK: Achievement Pop-up Functions
+    func tryShowNextAchievementBanner() {
+        guard changeToShow == nil else { return }
+        guard !showAchievementBanner else { return }
+        guard !pendingAchievements.isEmpty else { return }
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+            showAchievementBanner = true
+        }
+    }
+    
+    func handleAchievementBannerDismissed() {
+        if !pendingAchievements.isEmpty {
+            pendingAchievements.removeFirst()
+        }
+        
+        showAchievementBanner = false
+        
+        tryShowNextAchievementBanner()
+    }
+    
 }
 
 #Preview {

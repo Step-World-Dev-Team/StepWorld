@@ -14,6 +14,10 @@ final class MapManager: ObservableObject {
     var userId: String?
     @Published var balance: Int = 0
     @Published var todaySteps: Int = 0
+    @Published var lastSyncDate: Date? = nil
+    
+    @Published var difficulty: Difficulty = .easy
+    @Published var dailyStepGoal: Int = Difficulty.easy.dailyStepGoal
     
     var scene: GameScene
     private var pendingSave: DispatchWorkItem?
@@ -39,6 +43,7 @@ final class MapManager: ObservableObject {
             print("onMapChanged attempted")
             self?.scheduleSave()
         }
+        checkForDailyReset()
         
         print("✅ MapManager initialized with shared GameScene.")
         //loadFromFirestoreIfAvailable()
@@ -102,11 +107,19 @@ final class MapManager: ObservableObject {
                 return currentBalance // ✅ safe captured value
             }
         }()
+        async let diff: Difficulty? = {
+              do {
+                  return try await UserManager.shared.getDifficulty(userId: uid)
+              } catch {
+                  return nil
+              }
+          }()
         
-        let (s, b) = await (steps, coins)
+        let (s, b, d) = await (steps, coins, diff)
         await MainActor.run {
             self.todaySteps = s
             self.balance = b
+            self.applyDifficulty(d)
         }
     }
     
@@ -191,11 +204,28 @@ final class MapManager: ObservableObject {
             do { return try await UserManager.shared.getBalance(userId: uid) }
             catch { return currentBalance }   // ⬅️ use snapshot
         }()
+        async let diff: Difficulty? = {
+                do { return try await UserManager.shared.getDifficulty(userId: uid) }
+                catch { return nil }
+            }()
         
-        let (s, b) = await (steps, coins)
+        let (s, b, d) = await (steps, coins, diff)
         self.todaySteps = s
         self.balance = b
+        self.applyDifficulty(d)
         print("ATTEMPTED REFRESH-NOW")
+    }
+    
+    func checkForDailyReset() {
+        let calendar = Calendar.current
+        if let last = lastSyncDate {
+            if !calendar.isDateInToday(last) {
+                todaySteps = 0
+            }
+        } else {
+            todaySteps = 0
+        }
+        lastSyncDate = Date()
     }
     // MARK: - Client Side inventory + purchase/equip
     //New Code
@@ -208,19 +238,25 @@ final class MapManager: ObservableObject {
     func purchaseSkin(baseType: String, skin: String, price: Int, userId: String) async {
         let key = "\(baseType)#\(skin)"
         guard !inventory.ownedSkins.contains(key) else { return }
+        
         do {
-            // You can keep this spend locally for now; or switch to purchaseProduct if your backend has a SKU.
+            // Spend coins
             _ = try await UserManager.shared.spend(userId: userId, amount: price)
+            
+            // Update local state
             inventory.ownedSkins.insert(key)
             scene.unlockSkin(baseType: baseType, skin: skin)
             equipped[baseType] = skin
             await persistSkins()
+            
+            // 🔹 Achievement for first skin
+            await AchievementsManager.shared.registerFirstSkinIfNeeded(userId: userId)
             print("✅ Purchased skin \(key)")
         } catch {
             print("❌ Purchase skin failed: \(error.localizedDescription)")
         }
     }
-    
+
     func equipSkin(baseType: String, skin: String) {
         let key = "\(baseType)#\(skin)"
         guard inventory.ownedSkins.contains(key) else { return }
@@ -247,35 +283,54 @@ final class MapManager: ObservableObject {
     // MARK: Disaster Function
     func checkAndApplyDailyDisaster(now: Date = Date()) async {
         guard let uid = scene.userId ?? Auth.auth().currentUser?.uid else { return }
-        // "Yesterday" in user’s timezone
+        
         let cal = Calendar.current
         guard let yesterday = cal.date(byAdding: .day, value: -1, to: now) else { return }
         
         do {
-            if let m = try await UserManager.shared.getDailyMetrics(userId: uid, date: yesterday) {
-                let already = m.disasterApplied ?? false
-                if m.stepCount < 3000 && !already {
-                    await MainActor.run { [weak self] in
-                        self?.scene.applyEarthquakeDamage()
-                    }
-                    // Persist map & set the flag so we don't re-apply
-                    try await saveMapForCurrentUser()
-                    try await UserManager.shared.setDisasterApplied(userId: uid, date: yesterday, applied: true)
-                    print("🌪️ Disaster applied for \(UserManager.dateId(for: yesterday))")
+            // Fetch yesterday's metrics AND the user's difficulty in parallel
+            async let metricsAsync = UserManager.shared.getDailyMetrics(userId: uid, date: yesterday)
+            async let diffAsync    = UserManager.shared.getDifficulty(userId: uid)
+            
+            let (metrics, diff) = try await (metricsAsync, diffAsync)
+            
+            guard let m = metrics else {
+                // No metrics for yesterday → treat as 0 steps if you want:
+                // let goal = (diff ?? .easy).dailyStepGoal
+                // if goal > 0 { ... quake ... }
+                return
+            }
+            
+            let already = m.disasterApplied ?? false
+            let difficulty = diff ?? .easy
+            let goal = difficulty.dailyStepGoal
+            
+            // 🔥 If yesterday's steps were below the goal and we haven't already quaked
+            if m.stepCount < goal && !already {
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
+                    
+                    // Use the full earthquake with shake + building damage
+                    self.scene.triggerEarthquake(
+                        duration: 3.0,
+                        breakProbability: 0.4,     // tweak: 0.0–1.0
+                        affectAlreadyBroken: false // only hit intact buildings
+                    )
                 }
-            } else {
-                // No doc for yesterday? Treat as 0 steps → disaster (optional)
-                // If you want that behavior, uncomment below:
-                /*
-                 await MainActor.run { [weak self] in self?.scene.applyEarthquakeDamage() }
-                 try await saveMapForCurrentUser()
-                 try await UserManager.shared.setDisasterApplied(userId: uid, date: yesterday, applied: true)
-                 */
+                
+                // Save the new broken map + mark the disaster as applied
+                try await saveMapForCurrentUser()
+                try await UserManager.shared.setDisasterApplied(
+                    userId: uid,
+                    date: yesterday,
+                    applied: true
+                )
             }
         } catch {
             print("Disaster check failed:", error.localizedDescription)
         }
     }
+
     
     // MARK: Skin Persistency
     func persistSkins() async {
@@ -303,5 +358,11 @@ final class MapManager: ObservableObject {
         defaults.set(balance,    forKey: kLastSeenBalance)
         defaults.set(Date().timeIntervalSince1970, forKey: kLastSeenAt)
     }
+    //MARK: Difficulty Helpers
+    private func applyDifficulty(_ diff: Difficulty?) {
+           let resolved = diff ?? .easy
+           difficulty = resolved
+           dailyStepGoal = resolved.dailyStepGoal
+       }
     
 }

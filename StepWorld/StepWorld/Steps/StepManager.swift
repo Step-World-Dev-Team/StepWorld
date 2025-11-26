@@ -96,6 +96,7 @@ class StepManager: ObservableObject {
     
     // syncs data collected with database
     func syncToday() async {
+
         let stepsType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
         let predicate = HKQuery.predicateForSamples(withStart: .startOfDay, end: Date())
         
