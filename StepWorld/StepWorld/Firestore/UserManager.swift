@@ -180,8 +180,8 @@ extension UserManager {
                     let deltaCoins = Int(floor(Double(deltaToCredit) * rate))
                     
                     // --- Apply balance change
-                    if deltaToCredit > 0 {
-                        balance += deltaToCredit
+                    if deltaCoins > 0 {
+                        balance += deltaCoins
                         if userSnap.exists {
                             txn.updateData(["balance": balance], forDocument: userRef)
                         } else {
@@ -189,7 +189,7 @@ extension UserManager {
                         }
                     }
                     
-                    return ["delta": deltaToCredit, "balance": balance]
+                    return ["delta": deltaCoins, "balance": balance]
                 } catch let err as NSError {
                     errorPointer?.pointee = err
                     return nil
