@@ -64,7 +64,7 @@ final class GameScene: SKScene {
     private var hudLabel: SKLabelNode?
 
     // MARK: - Build menu
-    private var buildMenu: SKNode?
+    var buildMenu: SKNode?
     private let availableBuildings = ["Barn", "House", "Farm"]
     private let panelSprite  = "build_menu_background"
     private let buttonSprite = "clear_button"
@@ -617,88 +617,6 @@ final class GameScene: SKScene {
         [tl, tr, bl, br].forEach { container.addChild($0) }
     }
 
-    /*private func setPlotSelected(_ plot: SKShapeNode, selected: Bool) {
-        if selected {
-            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.18)
-            plot.strokeColor = UIColor.systemGreen
-            plot.lineWidth   = 3
-        } else {
-            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
-            plot.strokeColor = UIColor.systemGreen.withAlphaComponent(0.65)
-            plot.lineWidth   = 2
-        }
-
-        let size = (plot.path?.boundingBox.size) ?? .zero
-        ensureCornerBrackets(on: plot, size: size, visible: selected)
-        plot.childNode(withName: "cornerBrackets")?.isHidden = !selected
-    }
-        */
-
-    /*private func stylePlot(_ plot: SKShapeNode, size: CGSize) {
-        // Softer base
-        plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
-        plot.strokeColor = UIColor.systemGreen.withAlphaComponent(0.65)
-        plot.lineWidth   = 2
-        plot.glowWidth   = plotGlow
-        plot.blendMode   = .alpha
-
-        // Softer pulsing ring
-        let ringSize = CGSize(width: size.width * ringScale, height: size.height * ringScale)
-        let ring = SKShapeNode(rectOf: ringSize, cornerRadius: 10)
-        ring.strokeColor = UIColor.white.withAlphaComponent(0.45)
-        ring.lineWidth   = 1.5
-        ring.glowWidth   = 5
-        ring.alpha       = ringAlpha
-        ring.blendMode   = .alpha
-        ring.zPosition   = 6
-        plot.addChild(ring)
-
-        let up   = SKAction.group([.fadeAlpha(to: 0.5, duration: 1.2),
-                                   .scale(to: 1.04, duration: 1.2)])
-        let down = SKAction.group([.fadeAlpha(to: 0.3, duration: 1.2),
-                                   .scale(to: 1.00, duration: 1.2)])
-        ring.run(.repeatForever(.sequence([up, down])))
-
-        // Corner brackets (subtle)
-        let brackets = SKNode()
-        brackets.zPosition = 7
-        plot.addChild(brackets)
-
-        func corner(_ dx: CGFloat, _ dy: CGFloat) -> SKShapeNode {
-            let path = UIBezierPath()
-            let len: CGFloat = 14
-            path.move(to: .zero); path.addLine(to: CGPoint(x: len * dx, y: 0))
-            path.move(to: .zero); path.addLine(to: CGPoint(x: 0, y: len * dy))
-            let n = SKShapeNode(path: path.cgPath)
-            n.strokeColor = UIColor.white.withAlphaComponent(0.6)
-            n.lineWidth = 1.5
-            n.alpha = 0.7
-            n.blendMode = .alpha
-            return n
-        }
-
-        let halfW = size.width / 2
-        let halfH = size.height / 2
-        let tl = corner( 1,  1); tl.position = CGPoint(x: -halfW, y:  halfH)
-        let tr = corner(-1,  1); tr.position = CGPoint(x:  halfW, y:  halfH)
-        let bl = corner( 1, -1); bl.position = CGPoint(x: -halfW, y: -halfH)
-        let br = corner(-1, -1); br.position = CGPoint(x:  halfW, y: -halfH)
-        [tl,tr,bl,br].forEach { brackets.addChild($0) }
-    }
-
-    private func setPlotSelected(_ plot: SKShapeNode, selected: Bool) {
-        if selected {
-            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.32)
-            plot.strokeColor = UIColor.systemGreen
-            plot.lineWidth   = 3
-        } else {
-            plot.fillColor   = UIColor.systemGreen.withAlphaComponent(0.14)
-            plot.strokeColor = UIColor.systemGreen.withAlphaComponent(0.65)
-            plot.lineWidth   = 2
-        }
-    }
-     */
-
     // MARK: - HUD
     private func setupHUD() {
         hudRoot.zPosition = 10_000
@@ -773,23 +691,6 @@ final class GameScene: SKScene {
         dismissBuildMenu()
     }
 
-    /*@objc private func panGesture(_ sender: UIPanGestureRecognizer) {
-        guard let view = self.view else { return }
-        let t = sender.translation(in: view)
-        sender.setTranslation(.zero, in: view)
-
-        cameraNode.position.x -= t.x * cameraNode.xScale
-        cameraNode.position.y += t.y * cameraNode.yScale
-        clampCameraToMap()
-
-        if sender.state == .ended {
-            let v = sender.velocity(in: view)
-            panVelocity = CGPoint(x: -v.x * cameraNode.xScale, y: v.y * cameraNode.yScale)
-        } else {
-            panVelocity = .zero
-        }
-    }
-     */
     @objc private func panGesture(_ sender: UIPanGestureRecognizer) {
         // 🔹 clear selection as soon as the user starts dragging the map
         if sender.state == .began, selectedPlot != nil {
@@ -1001,53 +902,6 @@ final class GameScene: SKScene {
             dismissBuildMenu()
         }
 
-       /* // E) Plot selection → Build/Manage
-        if let plot = tapped.first(where: { $0.name == "plot" }) as? SKShapeNode {
-            for p in plotNodes { setPlotSelected(p, selected: false) }
-            setPlotSelected(plot, selected: true)
-            selectedPlot = plot
-            if isPlotOccupied(plot) {
-                showManageMenu(for: plot)
-            } else {
-                showBuildMenu() }
-            return
-        }
-
-        // F) Fallback
-        dismissBuildMenu()
-    } */
-
-
-    /*// MARK: - Touch → plot select → build menu
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let t = touches.first else { return }
-        let loc = t.location(in: self)
-        let tapped = nodes(at: loc)
-
-        // Handle menu taps first (either build or manage)
-        if handleManageMenuTap(tapped) { return }
-        if handleBuildMenuTap(tapped) { return }
-
-        // Plot selection → show either Build or Manage menu
-        if let plot = tapped.first(where: { $0.name == "plot" }) as? SKShapeNode {
-            for p in plotNodes { setPlotSelected(p, selected: false) }
-            setPlotSelected(plot, selected: true)
-            selectedPlot = plot
-
-            if isPlotOccupied(plot) {
-                if let bld = building(on: plot) {
-                    showManageMenu(for: bld)
-                }
-            } else {
-                showBuildMenu()
-            }
-            return
-        }
-
-        dismissBuildMenu()
-    }
-*/
-
     // MARK: - Build menu (fixed layout: no overlap)
     
     private func nineSlice(_ node: SKSpriteNode,
@@ -1081,8 +935,11 @@ final class GameScene: SKScene {
         
         //Changed availableBuildings.count to allowed.count
         let buttonsBlockH = CGFloat(allowed.count) * (menuButtonH + menuGap) - menuGap
-        let panelH = menuHeaderPad + titleToListGap + buttonsBlockH + menuFooterPad
+        let infoLinesCount = allowed.count
+        let infoBlockH: CGFloat = CGFloat(infoLinesCount) * 22 + 12
+        let panelH = menuHeaderPad + titleToListGap + infoBlockH + 16 + buttonsBlockH + menuFooterPad
         let panelSize = CGSize(width: panelWidth, height: panelH)
+
 
         // Panel
         let panel = SKSpriteNode(imageNamed: panelSprite)
@@ -1099,9 +956,42 @@ final class GameScene: SKScene {
         title.fontColor = .label
         title.position = CGPoint(x: 0, y: panelSize.height/2 - 60)
         menu.addChild(title)
+        
+        // --- Info preview box for available buildings ---
+        let infoBG = SKShapeNode(
+            rectOf: CGSize(width: panelWidth - 40, height: infoBlockH),
+            cornerRadius: 10
+        )
+        infoBG.fillColor = .clear
+        infoBG.strokeColor = .clear
+        infoBG.zPosition = 1
+        infoBG.position = CGPoint(x: 0, y: title.position.y - 32)
+        menu.addChild(infoBG)
+
+        // One line per allowed building: "House: Cozy starter home."
+        let lineSpacing: CGFloat = 20
+        let totalHeight = CGFloat(allowed.count - 1) * lineSpacing
+
+        for (index, name) in allowed.enumerated() {
+            let base = baseName(from: name)                // you already have baseName(from:)
+            let preview = buildPreviewDescription(for: base)
+
+            let label = SKLabelNode(text: "\(base): \(preview)")
+            label.fontName = "PressStart2P-Regular"
+            label.fontSize = 12
+            label.fontColor = .black
+            label.horizontalAlignmentMode = .center
+            label.verticalAlignmentMode = .center
+            label.zPosition = 2
+
+            let lineY = infoBG.position.y + totalHeight/2 - CGFloat(index) * lineSpacing
+            label.position = CGPoint(x: 0, y: lineY)
+
+            menu.addChild(label)
+        }
 
         // Buildings list
-        var y = panelSize.height/2 - menuHeaderPad - titleToListGap - menuButtonH/2
+        var y = infoBG.position.y - infoBlockH/2 - 16 - menuButtonH/2
         for name in allowed { // Changed availableBuildings to allowed
             let btn = buttonNode(title: name, actionName: "build:\(name)",
                                  size: CGSize(width: menuButtonW, height: menuButtonH))
@@ -1283,9 +1173,13 @@ final class GameScene: SKScene {
         let isDamaged = (building.userData?["damaged"] as? Bool) ?? false
 
         // Layout (reuse your sizing constants)
-        let buttons = isDamaged ? ["Repair", "Upgrade", "Sell", "Cancel"] : ["Upgrade", "Sell", "Cancel"]
+        let infoBlockH: CGFloat = 68
+        let buttons = isDamaged
+        ? ["Repair", "Upgrade", "Sell", "Cancel"]
+        : ["Upgrade", "Sell", "Cancel"]
+        
         let buttonsBlockH = CGFloat(buttons.count) * (menuButtonH + menuGap) - menuGap
-        let panelH = menuHeaderPad + titleToListGap + buttonsBlockH + menuFooterPad/2
+        let panelH = menuHeaderPad + titleToListGap + infoBlockH + 14 + buttonsBlockH + menuFooterPad/2
         let panelSize = CGSize(width: panelWidth, height: panelH)
 
         // Panel        
@@ -1303,9 +1197,50 @@ final class GameScene: SKScene {
         title.fontColor = .label
         title.position = CGPoint(x: 0, y: panelSize.height/2 - 60)
         menu.addChild(title)
+        
+        // --- Info box (uses helper) ---
+        let bType = (building.userData?["type"] as? String) ?? "Building"
+        let bLevel = (building.userData?["level"] as? Int) ?? 1
+        let skin = (building.userData?["skin"] as? String)
+        let info = buildingDescription(type: bType, skin:skin, level: bLevel)
+        // Background for info
+            let infoBG = SKShapeNode(rectOf: CGSize(width: panelWidth - 40, height: infoBlockH), cornerRadius: 10)
+            infoBG.strokeColor = UIColor.white.withAlphaComponent(0.35)
+            infoBG.lineWidth = 1
+            infoBG.position = CGPoint(x: 0, y: title.position.y - 40)
+            infoBG.zPosition = 1
+            menu.addChild(infoBG)
+
+        
+            // Title (Lv info)
+            let infoTitle = SKLabelNode(text: info.title)
+            infoTitle.fontName = "PressStart2P-Regular"
+            infoTitle.fontSize = 12
+            infoTitle.fontColor = .black
+            infoTitle.position = CGPoint(x: 0, y: infoBG.position.y + 12)
+            infoTitle.zPosition = 2
+            infoTitle.name = "infoTitle"
+            menu.addChild(infoTitle)
+
+            // Blurb
+            let infoBody = SKLabelNode(text: info.blurb)
+            infoBody.preferredMaxLayoutWidth = infoBG.frame.width - 20
+            infoBody.fontName = "PressStart2P-Regular"
+            infoBody.fontSize = 11
+            infoBody.fontColor = .black
+            infoBody.lineBreakMode = .byWordWrapping
+            infoBody.numberOfLines = 0
+            infoBody.verticalAlignmentMode = .center
+            infoBody.horizontalAlignmentMode = .center
+            infoBody.position = infoBG.position
+            infoBody.zPosition = 2
+            infoBody.name = "infoBody"
+            menu.addChild(infoBody)
+    
+
 
         // Buttons
-        var y = panelSize.height/2 - menuHeaderPad - titleToListGap - menuButtonH/2
+        var y = infoBG.position.y - infoBlockH/2 - 16 - menuButtonH/2
 
         func addButton(_ label: String, action: String, isCancel: Bool = false) {
             let btn = buttonNode(
@@ -1464,7 +1399,8 @@ final class GameScene: SKScene {
                 
                 //Play sound
                 playLoopingSFX("wood_sawing", loops: 1, volume: 0.9, clipDuration: 0.6)
-
+                // ✅ refresh the info labels using helper
+                updateManageMenuInfo(for: building)
             } else {
                 print("No image named \(newTextureName).png found")
             }
@@ -1491,6 +1427,8 @@ final class GameScene: SKScene {
             print("Refunded \(refundAmount). New balance: \(newBalance)")
             
             playLoopingSFX("coin_drop", loops: 1, volume: 0.8, clipDuration: 1.0)
+            
+            updateManageMenuInfo(for: building)
             
             // Remove from scene and tracking; clear occupancy
             if let idx = buildings.firstIndex(of: building) { buildings.remove(at: idx) }
@@ -1593,6 +1531,18 @@ final class GameScene: SKScene {
     // separates the building name from the full asset Name
     private func baseName(from assetName: String) -> String {
         return assetName.components(separatedBy: "_").first ?? assetName
+    }
+    private func buildPreviewDescription(for baseType: String) -> String {
+        switch baseType {
+        case "House":
+            return "Cost $200"
+        case "Barn":
+            return "Cost $300"
+        case "Farm":
+            return "Grows crops to earn more coins."
+        default:
+            return "A new building for your town."
+        }
     }
     // MARK: - Texture name resolver
     
