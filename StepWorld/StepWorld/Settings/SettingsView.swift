@@ -90,26 +90,32 @@ struct SettingsView: View {
                 Button {
                     showDifficultySettings = true
                 } label: {
-                    Text("Change Difficulty")
-                        .font(.headline)
+                    Text("CHANGE DIFFICULTY")
+                        .font(.custom("Press Start 2P", size: 15))
+                        .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.89, green: 0.49, blue: 0.30))
+                .background(Image("clear_button")
+                    .resizable()
+                    .frame(width: 280, height: 60)
+                )
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
                 
                 Button(role: .destructive) {
                     onSignOut?()
                 } label: {
-                    Text("Sign Out")
-                        .font(.headline)
+                    Text("SIGN OUT")
+                        .font(.custom("Press Start 2P", size: 15))
+                        .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
+                .background(Image("cancel_button")
+                    .resizable()
+                    .frame(width: 280, height: 60)
+                )
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
                 

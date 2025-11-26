@@ -1622,7 +1622,10 @@ final class GameScene: SKScene {
                     anyChanged = true
                 }
             }
-            if anyChanged { self.triggerMapChanged() }
+            if anyChanged {
+                self.playLoopingSFX("HouseBreak", loops: 1, volume: 1.0, clipDuration: 1.0)
+                self.triggerMapChanged()
+            }
         }
     }
     
