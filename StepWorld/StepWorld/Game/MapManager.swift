@@ -14,8 +14,8 @@ final class MapManager: ObservableObject {
     var userId: String?
     @Published var balance: Int = 0
     @Published var todaySteps: Int = 0
+    @Published var lastSyncDate: Date? = nil
     
-    // ✅ NEW
     @Published var difficulty: Difficulty = .easy
     @Published var dailyStepGoal: Int = Difficulty.easy.dailyStepGoal
     
@@ -43,6 +43,7 @@ final class MapManager: ObservableObject {
             print("onMapChanged attempted")
             self?.scheduleSave()
         }
+        checkForDailyReset()
         
         print("✅ MapManager initialized with shared GameScene.")
         //loadFromFirestoreIfAvailable()
@@ -213,6 +214,18 @@ final class MapManager: ObservableObject {
         self.balance = b
         self.applyDifficulty(d)
         print("ATTEMPTED REFRESH-NOW")
+    }
+    
+    func checkForDailyReset() {
+        let calendar = Calendar.current
+        if let last = lastSyncDate {
+            if !calendar.isDateInToday(last) {
+                todaySteps = 0
+            }
+        } else {
+            todaySteps = 0
+        }
+        lastSyncDate = Date()
     }
     // MARK: - Client Side inventory + purchase/equip
     //New Code

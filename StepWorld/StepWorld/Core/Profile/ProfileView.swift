@@ -131,6 +131,10 @@ struct ProfileView: View {
                     .foregroundColor(.black)
                     .padding(.top, 10)
                  */
+                Text("DAILY GOAL")
+                    .font(.custom("Press Start 2P", size: 20))
+                    .foregroundColor(.black)
+                    .padding(.top, 10)
                 DailyGoalRowView(
                     progress: viewModel.todaySteps ?? 0,
                     target: viewModel.dailyStepGoal
