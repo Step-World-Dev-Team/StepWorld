@@ -23,6 +23,13 @@ struct SpriteKitMapView: View {
     
     @StateObject private var shopVM = ShopViewModel()
     
+    
+    //This is for testing the "what's new" popup, I'll leave it here for now
+//    init(changeToShow: (steps: Int, balance: Int)? = nil) {
+//        _changeToShow = State(initialValue: changeToShow)
+//    }
+
+    
     private var isModalPresented: Bool { showProfile || showSettings || showShop}
     
     private func maybeShowPopup() {
@@ -120,51 +127,52 @@ struct SpriteKitMapView: View {
                     .zIndex(1)
                 }
             if let delta = changeToShow, (delta.steps != 0 || delta.balance != 0) {
-                // Optional: block touches behind the popup
-                Color.black.opacity(0.001)
-                    .ignoresSafeArea()
-                    .zIndex(150)
-                
-                VStack(spacing: 14) {
-                    Text("What’s New")
-                        .font(.custom("Press Start 2P", size: 16))
-                        .padding(.top, 12)
+                       // Optional: block touches behind the popup
+                ZStack {
                     
-                    if delta.steps != 0 {
-                        Text("\(delta.steps >= 0 ? "▲" : "▼") Steps: \(delta.steps)")
-                            .font(.headline)
-                    }
-                    if delta.balance != 0 {
-                        Text("\(delta.balance >= 0 ? "▲" : "▼") Balance: \(delta.balance)")
-                            .font(.headline)
-                    }
+                    Image("build_menu_background")
+                        .resizable()
+                        .frame(width: 220, height: 230)
                     
-                    Button {
-                        map.markStatsAsSeenNow()
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                            changeToShow = nil
+                    VStack(spacing: 14) {
+                        Text("What’s New")
+                            .font(.custom("Press Start 2P", size: 16))
+                            .padding(.top, 12)
+
+                        if delta.steps != 0 {
+                            Text("\(delta.steps >= 0 ? "▲" : "▼") Steps: \(delta.steps)")
+                                .font(.custom("Press Start 2P", size: 12))
                         }
-                    } label: {
-                        Text("Got it")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 10)
-                            .background(Color.black.opacity(0.8))
-                            .cornerRadius(10)
+                        if delta.balance != 0 {
+                            Text("\(delta.balance >= 0 ? "▲" : "▼") Balance: \(delta.balance)")
+                                .font(.custom("Press Start 2P", size: 12))
+                        }
+
+                        Button {
+                            map.markStatsAsSeenNow()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                changeToShow = nil
+                            }
+                        } label: {
+                            Text("Got it")
+                                .font(.custom("Press Start 2P", size: 12))
+                                .foregroundColor(.black)
+                                .background(Image("clear_button")
+                                    .resizable()
+                                    .frame(width: 100, height: 30)
+                                )
+                        }
+                        .padding(.top, 45)
+                        .padding(.bottom, 20)
                     }
-                    .padding(.bottom, 12)
+                    .padding()
+                    .frame(maxWidth: 320)
+                    .transition(.scale.combined(with: .opacity))
+                    .zIndex(200) // higher than modal
                 }
-                .padding()
-                .frame(maxWidth: 320)
-                .background(
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(Color(.systemBackground))
-                        .shadow(radius: 12)
-                )
-                .transition(.scale.combined(with: .opacity))
-                .zIndex(200) // higher than modal
-            }
+
+                       
+                   }
             
             if isModalPresented {
                 ZStack {
@@ -356,7 +364,10 @@ struct SpriteKitMapView: View {
 }
 
 #Preview {
+    //this comment is for testing purposes
+    //SpriteKitMapView(changeToShow: (steps: 2000, balance: 150))
     SpriteKitMapView()
         .environmentObject(MapManager())
         .environmentObject(StepManager())
 }
+
