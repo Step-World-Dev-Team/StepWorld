@@ -139,7 +139,7 @@ extension UserManager {
                     
                     // --- Read difficulty with default if missing
                     let difficultyRaw = (userSnap.data()?["difficulty"] as? String)
-                        ?? Difficulty.easy.rawValue
+                    ?? Difficulty.easy.rawValue
                     let difficulty = Difficulty(rawValue: difficultyRaw) ?? .easy
                     let rate = difficulty.coinPerStep   // <- keep using rate
                     
@@ -206,6 +206,7 @@ extension UserManager {
                         }
                     }
                     
+                    
                     // Return values used by the async function
                     return [
                         "delta": deltaSteps,
@@ -236,7 +237,7 @@ extension UserManager {
             })
         }
     }
-
+    
     
     //MARK: Shop/Transaction methods
     // Spend from balance (atomic)
@@ -517,24 +518,24 @@ extension UserManager {
 // MARK: Skins Persistence
 extension UserManager {
     struct SkinState: Codable {
-            let owned: [String]            // e.g. ["Barn#Blue", "House#Candy"]
-            let equipped: [String:String]  // baseType -> skin name (e.g. ["Barn":"Blue"])
-        }
-
-        func saveSkinState(userId: String, owned: Set<String>, equipped: [String:String]) async throws {
-            try await userDocument(userId).setData([
-                "owned_skins": Array(owned),
-                "equipped_skins": equipped,
-                "skins_updated_at": FieldValue.serverTimestamp()
-            ], merge: true)
-        }
-
-        func fetchSkinState(userId: String) async throws -> SkinState {
-            let snap = try await userDocument(userId).getDocument()
-            let owned = (snap.data()?["owned_skins"] as? [String]) ?? []
-            let equipped = (snap.data()?["equipped_skins"] as? [String:String]) ?? [:]
-            return .init(owned: owned, equipped: equipped)
-        }
+        let owned: [String]            // e.g. ["Barn#Blue", "House#Candy"]
+        let equipped: [String:String]  // baseType -> skin name (e.g. ["Barn":"Blue"])
+    }
+    
+    func saveSkinState(userId: String, owned: Set<String>, equipped: [String:String]) async throws {
+        try await userDocument(userId).setData([
+            "owned_skins": Array(owned),
+            "equipped_skins": equipped,
+            "skins_updated_at": FieldValue.serverTimestamp()
+        ], merge: true)
+    }
+    
+    func fetchSkinState(userId: String) async throws -> SkinState {
+        let snap = try await userDocument(userId).getDocument()
+        let owned = (snap.data()?["owned_skins"] as? [String]) ?? []
+        let equipped = (snap.data()?["equipped_skins"] as? [String:String]) ?? [:]
+        return .init(owned: owned, equipped: equipped)
+    }
 }
 
 
@@ -559,10 +560,25 @@ extension UserManager {
 }
 
 
-
-    
-
 extension UserManager {
+    // MARK: Difficulty Functions
+    // Read the user's difficulty (nil if not set)
+    func getDifficulty(userId: String) async throws -> Difficulty? {
+        let snap = try await userDocument(userId).getDocument()
+        guard let raw = snap.data()?["difficulty"] as? String,
+              let diff = Difficulty(rawValue: raw) else {
+            return nil
+        }
+        return diff
+    }
+    
+    // Write/overwrite the user's difficulty
+    func setDifficulty(userId: String, _ diff: Difficulty) async throws {
+        try await userDocument(userId).setData(["difficulty": diff.rawValue],
+                                               merge: true
+        )
+    }
+    
     // MARK: Disaster Helpers
     func setDisasterApplied(userId: String, date: Date, applied: Bool) async throws {
         let dateId = Self.dateId(for: date)
@@ -571,19 +587,6 @@ extension UserManager {
             "disaster_applied": applied,
             "updated_at": FieldValue.serverTimestamp()
         ], merge: true)
-    }
-    // MARK: Difficulty Functions
-    // Read the user's difficulty (nil if not set)
-    func getDifficulty(userId: String) async throws -> Difficulty? {
-        let snap = try await userDocument(userId).getDocument()
-        guard let raw = snap.data()?["difficulty"] as? String,
-              let diff = Difficulty(rawValue: raw) else { return nil }
-        return diff
-    }
-    
-    // Write/overwrite the user's difficulty
-    func setDifficulty(userId: String, _ diff: Difficulty) async throws {
-        try await userDocument(userId).setData(["difficulty": diff.rawValue], merge: true)
     }
 }
 

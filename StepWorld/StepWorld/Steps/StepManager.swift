@@ -95,45 +95,55 @@ class StepManager: ObservableObject {
     }
     
     // syncs data collected with database
-    func syncToday() {
+    func syncToday() async {
+
         let stepsType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
         let predicate = HKQuery.predicateForSamples(withStart: .startOfDay, end: Date())
-        let query = HKStatisticsQuery(quantityType: stepsType, quantitySamplePredicate: predicate) { _, result, error in
-            guard let quantity = result?.sumQuantity(), error == nil else {
-                print("error in fetching today's step data")
-                return
-            }
-            let stepCount = Int(quantity.doubleValue(for: .count()))
-            DispatchQueue.main.async {
-                self.todaySteps = stepCount
-            }
-            
-            guard let uid = self.userId else { return }
-            Task {
-                do {
-                    // calls for userManager function to add data
-                    let outcome = try await UserManager.shared.creditStepsAndSyncDaily(
-                        userId: uid,
-                        date: Date(),
-                        newStepCount: stepCount
-                    )
-                    DispatchQueue.main.async {
-                        self.balance = outcome.balance
-                    }
-                    Task {
-                        await AchievementsManager.shared.handleStepsUpdate(
+        
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            let query = HKStatisticsQuery(
+                quantityType: stepsType,
+                quantitySamplePredicate: predicate
+            ) { [weak self] _, result, error in
+                guard let self else {
+                    cont.resume()
+                    return
+                }
+                
+                guard let quantity = result?.sumQuantity(), error == nil else {
+                    print("error in fetching today's step data: \(String(describing: error))")
+                    cont.resume()
+                    return
+                }
+                
+                let stepCount = Int(quantity.doubleValue(for: .count()))
+                DispatchQueue.main.async {
+                    self.todaySteps = stepCount
+                }
+                
+                guard let uid = self.userId else {
+                    cont.resume()
+                    return
+                }
+                
+                Task {
+                    do {
+                        let outcome = try await UserManager.shared.creditStepsAndSyncDaily(
                             userId: uid,
-                            todaySteps: stepCount,
-                            lifetimeSteps: outcome.totalSteps,
-                            date: Date()
+                            date: Date(),
+                            newStepCount: stepCount
                         )
+                        DispatchQueue.main.async {
+                            self.balance = outcome.balance
+                        }
+                    } catch {
+                        print("Failed to persist daily metrics: \(error)")
                     }
-                } catch {
-                    print("Failed to persist daily metrics: \(error)")
+                    cont.resume()   // ✅ return from syncToday() *after* DB is updated
                 }
             }
+            self.healthStore.execute(query)
         }
-        healthStore.execute(query)
     }
 }
 

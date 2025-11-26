@@ -31,9 +31,19 @@ struct SpriteKitMapView: View {
     
     @StateObject private var shopVM = ShopViewModel()
     
-    //MARK: Mark
-    private var isModalPresented: Bool { showProfile || showSettings || showShop || showAchievements} //maybe remove showAchievements
-
+    private var isModalPresented: Bool { showProfile || showSettings || showShop || showAchievements }
+    
+    private func maybeShowPopup() {
+        let delta = map.pendingChangeSinceLastSeen()
+        
+        guard (delta.steps != 0 ) else { return }
+        // Avoid overwriting an already-visible popup
+        guard changeToShow == nil else { return }
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+            changeToShow = delta
+        }
+    }
     
     var body: some View {
         ZStack {
@@ -120,8 +130,8 @@ struct SpriteKitMapView: View {
                     .zIndex(1)
                 }
             if let delta = changeToShow, (delta.steps != 0 || delta.balance != 0) {
-            
-                       // Optional: block touches behind the popup
+                
+                // Optional: block touches behind the popup
                 ZStack {
                     
                     Image("build_menu_background")
@@ -132,7 +142,7 @@ struct SpriteKitMapView: View {
                         Text("What’s New")
                             .font(.custom("Press Start 2P", size: 16))
                             .padding(.top, 12)
-
+                        
                         if delta.steps != 0 {
                             Text("\(delta.steps >= 0 ? "▲" : "▼") Steps: \(delta.steps)")
                                 .font(.custom("Press Start 2P", size: 12))
@@ -141,7 +151,7 @@ struct SpriteKitMapView: View {
                             Text("\(delta.balance >= 0 ? "▲" : "▼") Balance: \(delta.balance)")
                                 .font(.custom("Press Start 2P", size: 12))
                         }
-
+                        
                         Button {
                             map.markStatsAsSeenNow()
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
@@ -164,16 +174,16 @@ struct SpriteKitMapView: View {
                     .transition(.scale.combined(with: .opacity))
                     .zIndex(200) // higher than modal
                 }
-            // 🔔 Achievement banner (after change pop-up)
-            if showAchievementBanner, let currentId = pendingAchievements.first {
-                AchievementBannerView(
-                    message: "You completed an achievement!"
-                ) {
-                    handleAchievementBannerDismissed()
+                // 🔔 Achievement banner (after change pop-up)
+                if showAchievementBanner, let currentId = pendingAchievements.first {
+                    AchievementBannerView(
+                        message: "You completed an achievement!"
+                    ) {
+                        handleAchievementBannerDismissed()
+                    }
+                    .zIndex(250)
                 }
-                .zIndex(250)
-            }
-            
+                
                 if showDailyGoalBanner {
                     DailyGoalBannerView(
                         steps: map.todaySteps,
@@ -183,7 +193,7 @@ struct SpriteKitMapView: View {
                     }
                     .zIndex(240)
                 }
-                   }
+            }
             
             if isModalPresented {
                 ZStack {
@@ -318,8 +328,8 @@ struct SpriteKitMapView: View {
                                 }
                             }
                         }
-                    }
-
+                        }
+                        
                         .background(Color.clear)
                         .frame(
                             width: min(g.size.width * 0.92, 500),
@@ -332,32 +342,39 @@ struct SpriteKitMapView: View {
                 }
                 .zIndex(100)
             }
-                
-
-            // TODO: Remove button and add logic to activate quake when user didn't walk enough
             
+            
+            // TODO: Remove button and add logic to activate quake when user didn't walk enough
             ZStack(alignment: .topLeading) {
-                 Button {
-                     (map.scene as? GameScene)?.triggerEarthquake(duration: 3.0, breakProbability: 1.0)
-                 } label: {
-                     Text("Quake!")
-                         .font(.caption)
-                         .padding(.horizontal, 10)
-                         .padding(.vertical, 6)
-                         .background(Color.black.opacity(0.6))
-                         .foregroundColor(.white)
-                         .clipShape(RoundedRectangle(cornerRadius: 8))
-                 }
-                 .buttonStyle(.plain)
-                 .padding(.top, 20)
-                 .padding(.leading, 20)
-             
+                Button {
+                    (map.scene as? GameScene)?.triggerEarthquake(duration: 3.0, breakProbability: 1.0)
+                } label: {
+                    Text("Quake!")
+                        .font(.custom("Press Start 2P", size: 13))
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 16)
+                        .background(Color.red.opacity(0.9))
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 20)
+                .padding(.leading, 20)
             }
-            .ignoresSafeArea(edges: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            //.ignoresSafeArea()
+            
             
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        /*.onReceive(NotificationCenter.default.publisher(for: .showChangePopup)) { note in
+         let s = (note.userInfo?["steps"] as? Int) ?? 0
+         let b = (note.userInfo?["balance"] as? Int) ?? 0
+         withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+         self.changeToShow = (s, b)
+         }
+         }*/
         .onReceive(NotificationCenter.default.publisher(for: .showChangePopup)) { note in
             let s = (note.userInfo?["steps"] as? Int) ?? 0
             let b = (note.userInfo?["balance"] as? Int) ?? 0
@@ -379,14 +396,14 @@ struct SpriteKitMapView: View {
         .onChange(of: map.todaySteps) { newSteps in
             let goal = map.dailyStepGoal
             guard goal > 0 else { return }
-
+            
             // Only trigger when we cross the threshold (not every update above goal)
             if lastStepCount < goal && newSteps >= goal && !showDailyGoalBanner {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                     showDailyGoalBanner = true
                 }
             }
-
+            
             lastStepCount = newSteps
         }
         .onAppear {
@@ -396,32 +413,40 @@ struct SpriteKitMapView: View {
             Task {
                 await map.refreshNow()
                 await map.checkAndApplyDailyDisaster()
+                maybeShowPopup()
             }
             
             lastStepCount = map.todaySteps
         }
+        .onChange(of: map.todaySteps) { _ in
+            maybeShowPopup()
+        }
+        .onChange(of: map.balance) { _ in
+            maybeShowPopup()
+        }
+        
     }
     
     // MARK: Achievement Pop-up Functions
-        func tryShowNextAchievementBanner() {
-            guard changeToShow == nil else { return }
-            guard !showAchievementBanner else { return }
-            guard !pendingAchievements.isEmpty else { return }
-            
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                showAchievementBanner = true
-            }
+    func tryShowNextAchievementBanner() {
+        guard changeToShow == nil else { return }
+        guard !showAchievementBanner else { return }
+        guard !pendingAchievements.isEmpty else { return }
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+            showAchievementBanner = true
         }
-
-        func handleAchievementBannerDismissed() {
-            if !pendingAchievements.isEmpty {
-                pendingAchievements.removeFirst()
-            }
-            
-            showAchievementBanner = false
-            
-            tryShowNextAchievementBanner()
+    }
+    
+    func handleAchievementBannerDismissed() {
+        if !pendingAchievements.isEmpty {
+            pendingAchievements.removeFirst()
         }
+        
+        showAchievementBanner = false
+        
+        tryShowNextAchievementBanner()
+    }
     
 }
 

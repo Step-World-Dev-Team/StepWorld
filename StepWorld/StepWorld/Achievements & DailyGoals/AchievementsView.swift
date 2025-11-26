@@ -85,6 +85,8 @@ struct AchievementsView: View {
                     .padding(.top, 16)
                     .padding(.bottom, 30)
                 }
+                .frame(maxHeight: 580)
+                .clipped()
                 
                 Spacer()
             }
