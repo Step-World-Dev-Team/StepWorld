@@ -62,39 +62,39 @@ class StepManager: ObservableObject {
     
     // Convenient way of refreshing shown balance
     // For displaying in shop
-        func refreshBalance() {
-            guard let uid = userId else { return }
-            Task {
-                do {
-                    let bal = try await UserManager.shared.getBalance(userId: uid)
-                    DispatchQueue.main.async { self.balance = bal }
-                } catch {
-                    print("Failed to fetch balance: \(error)")
-                }
+    func refreshBalance() {
+        guard let uid = userId else { return }
+        Task {
+            do {
+                let bal = try await UserManager.shared.getBalance(userId: uid)
+                DispatchQueue.main.async { self.balance = bal }
+            } catch {
+                print("Failed to fetch balance: \(error)")
             }
         }
+    }
     
     // Spend from balance (shop/upgrades)
-        func attemptPurchase(cost: Int, onSuccess: (() -> Void)? = nil, onInsufficient: (() -> Void)? = nil) {
-            guard let uid = userId else { return }
-            Task {
-                do {
-                    let newBalance = try await UserManager.shared.spend(userId: uid, amount: cost)
-                    DispatchQueue.main.async {
-                        self.balance = newBalance
-                        onSuccess?()
-                    }
-                } catch {
-                    if case SpendError.insufficientFunds = error {
-                        DispatchQueue.main.async { onInsufficient?() }
-                    } else {
-                        print("Purchase error: \(error)")
-                    }
+    func attemptPurchase(cost: Int, onSuccess: (() -> Void)? = nil, onInsufficient: (() -> Void)? = nil) {
+        guard let uid = userId else { return }
+        Task {
+            do {
+                let newBalance = try await UserManager.shared.spend(userId: uid, amount: cost)
+                DispatchQueue.main.async {
+                    self.balance = newBalance
+                    onSuccess?()
+                }
+            } catch {
+                if case SpendError.insufficientFunds = error {
+                    DispatchQueue.main.async { onInsufficient?() }
+                } else {
+                    print("Purchase error: \(error)")
                 }
             }
         }
+    }
     
-   // syncs data collected with database
+    // syncs data collected with database
     func syncToday() {
         let stepsType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
         let predicate = HKQuery.predicateForSamples(withStart: .startOfDay, end: Date())
@@ -119,6 +119,14 @@ class StepManager: ObservableObject {
                     )
                     DispatchQueue.main.async {
                         self.balance = outcome.balance
+                    }
+                    Task {
+                        await AchievementsManager.shared.handleStepsUpdate(
+                            userId: uid,
+                            todaySteps: stepCount,
+                            lifetimeSteps: outcome.totalSteps,
+                            date: Date()
+                        )
                     }
                 } catch {
                     print("Failed to persist daily metrics: \(error)")

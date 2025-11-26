@@ -232,6 +232,9 @@ final class MapManager: ObservableObject {
             scene.unlockSkin(baseType: baseType, skin: skin)
             equipped[baseType] = skin
             await persistSkins()
+            
+            // Achievement: First Skin
+            await AchievementsManager.shared.registerFirstSkinIfNeeded(userId: userId)
             print("✅ Purchased skin \(key)")
         } catch {
             print("❌ Purchase skin failed: \(error.localizedDescription)")
