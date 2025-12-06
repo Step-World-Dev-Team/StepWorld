@@ -92,10 +92,22 @@ final class StatsDisplayViewModel: ObservableObject {
     }
 }
 
+enum StatChange {
+    case none
+    case up
+    case down
+}
+
 struct StatsDisplay: View {
     
     @EnvironmentObject var map: MapManager
     @StateObject private var viewModel = StatsDisplayViewModel()
+    
+    @State private var stepChange: StatChange = .none
+    @State private var balanceChange: StatChange = .none
+    
+    @State private var lastSteps: Int = 0
+    @State private var lastBalance: Int = 0
     
     var body: some View {
         //might have to correct the alignment...
@@ -115,6 +127,10 @@ struct StatsDisplay: View {
                             
                             Text(viewModel.todaySteps.formattedString())
                                 .font(.custom("Press Start 2P", size: 13))
+                                .foregroundColor(color(for: stepChange))
+                                .shadow(color: glowColor(for: stepChange),
+                                        radius: glowRadius(for: stepChange))
+                                .animation(.easeOut(duration: 0.25), value: stepChange)
                         }
                         HStack {
                             Image("Coin")
@@ -124,6 +140,10 @@ struct StatsDisplay: View {
                             Text(viewModel.balance.formattedString())
                                 .font(.custom("Press Start 2P", size: 13))
                                 .padding(.leading, 6)
+                                .foregroundColor(color(for: balanceChange))
+                                .shadow(color: glowColor(for: balanceChange),
+                                        radius: glowRadius(for: balanceChange))
+                                .animation(.easeOut(duration: 0.25), value: balanceChange)
                         }
                     }
                     .padding()
@@ -131,10 +151,84 @@ struct StatsDisplay: View {
                 }
             }
         }
-        .task { await viewModel.start() }     // kick off listeners + initial fetch
+        .task {
+            await viewModel.start()
+            lastSteps = viewModel.todaySteps
+            lastBalance = viewModel.balance
+        }     // kick off listeners + initial fetch
         .onDisappear { viewModel.stop() }     // tidy up if this view can disappear
+        
+        // React to step changes
+        .onChange(of: viewModel.todaySteps) {
+            let newValue = viewModel.todaySteps
+            let change: StatChange
+            
+            if newValue > lastSteps { change = .up }
+            else if newValue < lastSteps { change = .down }
+            else { change = .none }
+            
+            lastSteps = newValue
+            flashStepChange(change)
+        }
+        
+        // React to balance changes
+        .onChange(of: viewModel.balance) {
+            let newValue = viewModel.balance
+            let change: StatChange
+            
+            if newValue > lastBalance { change = .up }
+            else if newValue < lastBalance { change = .down }
+            else { change = .none }
+            
+            lastBalance = newValue
+            flashBalanceChange(change)
+        }
     }
     
+    // MARK: - Glow helpers
+    private func color(for change: StatChange) -> Color {
+        switch change {
+        case .none: return .black
+        case .up:   return .green
+        case .down: return .red
+        }
+    }
+    
+    private func glowColor(for change: StatChange) -> Color {
+        switch change {
+        case .none: return .clear
+        case .up:   return Color.green.opacity(0.9)
+        case .down: return Color.red.opacity(0.9)
+        }
+    }
+    
+    private func glowRadius(for change: StatChange) -> CGFloat {
+        change == .none ? 0 : 10
+    }
+    
+    private func flashStepChange(_ change: StatChange) {
+        guard change != .none else { return }
+        withAnimation(.easeOut(duration: 0.15)) {
+            stepChange = change
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            withAnimation(.easeOut(duration: 0.25)) {
+                stepChange = .none
+            }
+        }
+    }
+    
+    private func flashBalanceChange(_ change: StatChange) {
+        guard change != .none else { return }
+        withAnimation(.easeOut(duration: 0.15)) {
+            balanceChange = change
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            withAnimation(.easeOut(duration: 0.25)) {
+                balanceChange = .none
+            }
+        }
+    }
 }
 
 #Preview {
