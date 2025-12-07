@@ -50,8 +50,16 @@ public final class DecorManager {
     public func startPlacement(type: String) {
         placingType = type
         
-        // ghost preview
-        let ghost = SKSpriteNode(imageNamed: type)
+        let ghost: SKSpriteNode
+        if let uiImage = UIImage(named: type) {
+            let texture = SKTexture(image: uiImage)
+            texture.filteringMode = .nearest      // 👈 crisp preview
+            ghost = SKSpriteNode(texture: texture)
+        } else {
+            print("❌ Missing decor texture for preview '\(type)'")
+            ghost = SKSpriteNode(imageNamed: type)
+        }
+
         ghost.alpha = 0.6
         ghost.zPosition = 150
         ghost.setScale(1.5)
@@ -59,6 +67,7 @@ public final class DecorManager {
         scene?.addChild(ghost)
         previewNode = ghost
     }
+
     public func movePreview(to scenePoint: CGPoint) {
         guard let ghost = previewNode else { return }
         ghost.position = scenePoint
@@ -127,13 +136,26 @@ public final class DecorManager {
         }
         
         // Place final node
-        let node = SKSpriteNode(imageNamed: type)
+        let node: SKSpriteNode
+
+        if let ghost = previewNode, let tex = ghost.texture {
+            // Reuse the ghost texture (already nearest-filtered from startPlacement)
+            tex.filteringMode = .nearest
+            node = SKSpriteNode(texture: tex)
+        } else if let uiImage = UIImage(named: type) {
+            let texture = SKTexture(image: uiImage)
+            texture.filteringMode = .nearest          // 👈 crisp final decor
+            node = SKSpriteNode(texture: texture)
+        } else {
+            print("❌ Missing decor texture for '\(type)' when placing.")
+            node = SKSpriteNode(color: .red, size: CGSize(width: 28, height: 28))
+        }
+
         node.position = scenePoint
         node.zPosition = 2
-        // Match preview scale if you kept it; otherwise set your preferred scale:
-        if let ghost = previewNode { node.setScale(ghost.xScale) } else { node.setScale(0.8) }
+        node.setScale(previewNode?.xScale ?? 0.8)
         node.name = "decor"
-        
+
         if node.userData == nil { node.userData = [:] }
         node.userData?["type"] = type
         
