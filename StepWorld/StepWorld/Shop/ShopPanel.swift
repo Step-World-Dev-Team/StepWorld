@@ -109,9 +109,9 @@ struct ShopPanel: View {
                                 // Glow ring when equipped
                                 .overlay(
                                     Rectangle()
-                                        .stroke((isSkin && equipped) ? Color.yellow.opacity(0.95) : .clear,
+                                        .stroke((isSkin && equipped) ? Color.green.opacity(0.95) : .clear,
                                                 lineWidth: (isSkin && equipped) ? 4 : 0)
-                                        .shadow(color: (isSkin && equipped) ? Color.yellow.opacity(0.7) : .clear,
+                                        .shadow(color: (isSkin && equipped) ? Color.green.opacity(0.7) : .clear,
                                                 radius: (isSkin && equipped) ? 10 : 0)
                                 )
                                 .animation(.easeInOut(duration: 0.2), value: equipped)
