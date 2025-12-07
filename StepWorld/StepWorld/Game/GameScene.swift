@@ -1514,6 +1514,22 @@ final class GameScene: SKScene {
             addBuilding(sprite)
         }
         print("✅ Loaded \(models.count) buildings into scene.")
+        
+        for plot in plotNodes {
+            let occupied = isPlotOccupied(plot)
+
+            if occupied {
+                // Remove sign if there is a building on this plot
+                plot.childNode(withName: "forSaleSign")?.removeFromParent()
+            } else {
+                // Add sign if empty and sign missing
+                if plot.childNode(withName: "forSaleSign") == nil {
+                    let size = (plot.userData?["plotSize"] as? NSValue)?.cgSizeValue
+                        ?? (plot.path?.boundingBox.size ?? .zero)
+                    attachForSaleSign(to: plot, plotSize: size)
+                }
+            }
+        }
     }
     
     // determines amount that will be refunded based on level
