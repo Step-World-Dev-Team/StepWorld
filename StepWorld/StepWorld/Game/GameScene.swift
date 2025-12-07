@@ -14,7 +14,7 @@ import AVFoundation
 final class GameScene: SKScene {
 
     // MARK: - Config
-    private let tmxName = "BiggerMap"
+    private let tmxName = "EvenBiggerMap"
     private let plotLayerName = "Building"        // must match Tiled Object Layer name exactly
 
     private let minZoom: CGFloat = 0.25 // was 0.55
@@ -261,7 +261,7 @@ final class GameScene: SKScene {
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
-        background = SKSpriteNode(imageNamed: "FarmBackground")
+        background = SKSpriteNode(imageNamed: "EvenBiggerMap") // Was FarmBackground
         background.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         background.position = .zero
         background.zPosition = -10
