@@ -74,6 +74,8 @@ struct ShopPanel: View {
                                     VStack(spacing: 6) {
                                         Image(item.iconName)
                                             .resizable()
+                                            .interpolation(.none)
+                                            .antialiased(false)
                                             .scaledToFit()
                                             .frame(width: 54, height: 54)
                                         
