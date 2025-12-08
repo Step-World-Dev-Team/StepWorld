@@ -14,7 +14,7 @@ import AVFoundation
 final class GameScene: SKScene {
 
     // MARK: - Config
-    private let tmxName = "BiggerMap"
+    private let tmxName = "EvenBiggerMap"
     private let plotLayerName = "Building"        // must match Tiled Object Layer name exactly
 
     private let minZoom: CGFloat = 0.25 // was 0.55
@@ -252,49 +252,63 @@ final class GameScene: SKScene {
     
     // MARK: - NPCs
     private var villagers: [SKSpriteNode] = []
+    private let villagerTypes = ["Villager1", "Villager2", "Villager3", "Villager4", "Villager5"]
+
 
     // MARK: - Villagers (NPCs)
 
+    private func randomVillagerType() -> String {
+        villagerTypes.randomElement() ?? "Villager1"
+    }
+    
     private func spawnVillager(at position: CGPoint) {
-        // Use your villager sprite name from Assets (e.g. "Villager", "Villager1")
-        let texture = SKTexture(imageNamed: "Villager1")
-        texture.filteringMode = .nearest   // keep pixel art crisp if you're using it
+        let type = randomVillagerType()
+
+        let texture = SKTexture(imageNamed: type)
+        texture.filteringMode = .nearest
 
         let npc = SKSpriteNode(texture: texture)
-        npc.name = "villager1"
-        npc.zPosition = 20     // above buildings, below HUD
+        npc.name = type
+        npc.zPosition = 20
         npc.position = position
-        npc.setScale(1.2)      // tweak to your art
+        npc.setScale(1.2)
+
+        if npc.userData == nil { npc.userData = [:] }
+        npc.userData?["type"] = type
+        npc.userData?["dead"] = false
 
         addChild(npc)
         villagers.append(npc)
 
         runVillagerPanicAnimation(npc)
     }
+
     
     private func spawnVillagersFromHouses(countPerHouse: Int = 15) {
         for house in buildings where (house.userData?["type"] as? String) == "House" {
             for _ in 0..<countPerHouse {
-                let villagerTexture = SKTexture(imageNamed: "Villager1")
-                villagerTexture.filteringMode = .nearest   // crisp
+                let type = randomVillagerType()          // e.g. "Villager3"
+
+                let villagerTexture = SKTexture(imageNamed: type)
+                villagerTexture.filteringMode = .nearest
                 let villager = SKSpriteNode(texture: villagerTexture)
                 villager.zPosition = 6
                 villager.position = CGPoint(
-                    x: house.position.x + 0,
+                    x: house.position.x,
                     y: house.position.y + 20
                 )
-                villager.setScale(1.2) // or whatever looked good before
+                villager.setScale(1.2)
 
                 if villager.userData == nil { villager.userData = [:] }
                 villager.userData?["dead"] = false
+                villager.userData?["type"] = type
 
                 addChild(villager)
 
-                // start panic running
                 runVillagerPanicAnimation(villager)
 
-                // 🔥 lifetime: 3s alive running, 1s dead before fade, 1s fading out
-                let lifetime: TimeInterval = 3.0
+                // random lifetime so they don't all die at once (optional but nice)
+                let lifetime = TimeInterval.random(in: 2.0...4.5)
                 let deadHold: TimeInterval = 1.0
                 let fadeDuration: TimeInterval = 1.0
 
@@ -305,12 +319,12 @@ final class GameScene: SKScene {
 
                         if v.userData == nil { v.userData = [:] }
                         v.userData?["dead"] = true
-
                         v.removeAction(forKey: "panicMove")
 
-                        // 🔄 swap to dead sprite, keep it crisp and NOT stretched
-                        let deadTexture = SKTexture(imageNamed: "Villager1_dead")
+                        let type = (v.userData?["type"] as? String) ?? "Villager1"
+                        let deadTexture = SKTexture(imageNamed: "\(type)_dead")
                         deadTexture.filteringMode = .nearest
+
                         v.texture = deadTexture
                         v.size = deadTexture.size()
                         v.setScale(1.6)
@@ -320,23 +334,51 @@ final class GameScene: SKScene {
                     .removeFromParent()
                 ])
 
-
                 villager.run(deathSequence, withKey: "lifetime")
             }
         }
     }
 
+    //debugging:
+    /*private func debugDrawIslandRect() {
+        let r = islandRect
+        let shape = SKShapeNode(rect: r)
+        shape.zPosition = 9999
+        shape.strokeColor = .red
+        shape.lineWidth = 3
+        shape.fillColor = .clear
+        shape.name = "islandDebugRect"
+        addChild(shape)
+
+        print("🟩 islandRect = \(r)")
+    }*/
 
     
-    private func randomPointInMap() -> CGPoint {
+    private var islandRect: CGRect {
+        // Use the TMX map size if we have it, else fall back to background size
         let worldSize: CGSize = mapInfo?.pixelSize ?? background.size
         let halfW = worldSize.width * 0.5
         let halfH = worldSize.height * 0.5
 
-        let x = CGFloat.random(in: -halfW...halfW)
-        let y = CGFloat.random(in: -halfH...halfH)
+        let insetX: CGFloat = 200   // how far from left/right water to stop
+        let insetY: CGFloat = 210   // how far from bottom/top water to stop
+
+        return CGRect(
+            x: -halfW + insetX,
+            y: -halfH + insetY,
+            width: worldSize.width  - insetX * 2,
+            height: worldSize.height - insetY * 2
+        )
+    }
+
+    
+    private func randomPointInMap() -> CGPoint {
+        let r = islandRect
+        let x = CGFloat.random(in: r.minX...r.maxX)
+        let y = CGFloat.random(in: r.minY...r.maxY)
         return CGPoint(x: x, y: y)
     }
+
 
     private func runVillagerPanicAnimation(_ npc: SKSpriteNode) {
         // if already removed or marked dead, do nothing
@@ -345,12 +387,12 @@ final class GameScene: SKScene {
 
         guard let mapSize = mapInfo?.pixelSize ?? background?.size else { return }
 
-        let halfW = mapSize.width * 0.5
-        let halfH = mapSize.height * 0.5
+        let r = islandRect
         let target = CGPoint(
-            x: CGFloat.random(in: -halfW...halfW),
-            y: CGFloat.random(in: -halfH...halfH)
+            x: CGFloat.random(in: r.minX...r.maxX),
+            y: CGFloat.random(in: r.minY...r.maxY)
         )
+
 
         let speed: CGFloat = 1000  // same as before or tweak
         let dx = target.x - npc.position.x
@@ -394,7 +436,7 @@ final class GameScene: SKScene {
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
-        background = SKSpriteNode(imageNamed: "FarmBackground")
+        background = SKSpriteNode(imageNamed: "EvenBiggerMap") // Was FarmBackground
         background.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         background.position = .zero
         background.zPosition = -10
@@ -459,6 +501,9 @@ final class GameScene: SKScene {
             view.addGestureRecognizer(hover)
             self.hoverGR = hover
         }
+        
+        //debugging:
+        //debugDrawIslandRect()
     }
     
     // When the scene is about to leave a view, clean up recognizers so we don't duplicate them later.
@@ -720,6 +765,7 @@ final class GameScene: SKScene {
         }
 
         let tex = SKTexture(imageNamed: "PlotCorner") // your bracket image in Assets
+        tex.filteringMode = .nearest
         let container = SKNode()
         container.name = "cornerBrackets"
         container.zPosition = 999
@@ -1751,6 +1797,10 @@ final class GameScene: SKScene {
                            affectAlreadyBroken: Bool = false) {
         // 1) Shake camera/SFX (existing)
         triggerEarthquakeShake(duration: duration)
+        
+        run(.wait(forDuration: 1.0)) {
+            self.spawnVillagersFromHouses()
+        }
 
         // 2) After shake settles, damage buildings
         let settleDelay = duration + 0.1
@@ -1773,7 +1823,6 @@ final class GameScene: SKScene {
             }
             if anyChanged {
                 self.playLoopingSFX("HouseBreak", loops: 1, volume: 1.0, clipDuration: 1.0)
-                self.spawnVillagersFromHouses()
                 self.triggerMapChanged()
             }
         }
