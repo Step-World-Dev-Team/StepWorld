@@ -83,7 +83,7 @@
       <property name="name" value="BotttomLeftPlot"/>
      </properties>
     </object>
-    <object id="17" name="Plot03" x="690" y="480" width="143.47" height="113.84">
+    <object id="17" name="Plot03" x="640" y="475" width="200.00" height="120.00">
      <properties>
       <property name="buildable" type="bool" value="true"/>
       <property name="cost" type="int" value="10"/>
