@@ -19,12 +19,16 @@ public final class DecorManager {
     private var placingType: String?
     private var previewNode: SKSpriteNode?
     
+    private var movingNode: SKSpriteNode?
+    private var movingOriginalPosition: CGPoint?
     
-    // Customize choices here (image names in assets)
-    //add png to Assets to get another item into Decoration menu
+    
     public var availableDecor: [String] = ["JackOLantern", "SunFlower"]
     
     public var isPlacing: Bool { placingType != nil }
+    public var isMoving: Bool { movingNode != nil }
+    
+    public var isInteracting: Bool{ isPlacing || isMoving }
     
     
     
@@ -67,6 +71,26 @@ public final class DecorManager {
         scene?.addChild(ghost)
         previewNode = ghost
     }
+    /// Begin moving an already-placed decor node.
+    /// This temporarily removes it from `placed` so it doesn't block its own validation.
+    public func beginMove(node: SKSpriteNode) {
+        // Remove from placed list while we drag
+        if let idx = placed.firstIndex(of: node) {
+            placed.remove(at: idx)
+        }
+
+        movingNode = node
+        movingOriginalPosition = node.position
+
+        // Reuse the real node as our "preview"
+        previewNode = node
+        node.zPosition = 150
+        node.alpha = 0.7
+        node.color = .clear
+        node.colorBlendFactor = 0.0
+        node.setScale(node.xScale)  // keep same size
+    }
+
 
     public func movePreview(to scenePoint: CGPoint) {
         guard let ghost = previewNode else { return }
@@ -178,6 +202,54 @@ public final class DecorManager {
         pulseOnce(at: scenePoint)  // nice feedback ring
         return true
     }
+    /// Confirm the new position for the decor being moved.
+    @discardableResult
+    public func confirmMove(at scenePoint: CGPoint) -> Bool {
+        guard let node = movingNode else { return false }
+
+        previewNode?.position = scenePoint
+
+        guard canPlace(at: scenePoint) else {
+            // Shake a bit and snap back
+            let l = SKAction.moveBy(x: -6, y: 0, duration: 0.05)
+            node.run(.sequence([l, l.reversed(), l, l.reversed()]))
+            if let original = movingOriginalPosition {
+                node.run(.move(to: original, duration: 0.1))
+            }
+            cleanupMoveState()
+            return false
+        }
+
+        // Finalize move
+        node.position = scenePoint
+        node.zPosition = 2
+        node.alpha = 1.0
+        node.colorBlendFactor = 0.0
+
+        placed.append(node)
+        cleanupMoveState()
+        return true
+    }
+
+    /// Cancel moving and snap decor back to its original spot.
+    public func cancelMove() {
+        guard let node = movingNode else { return }
+        if let original = movingOriginalPosition {
+            node.position = original
+        }
+        node.zPosition = 2
+        node.alpha = 1.0
+        node.colorBlendFactor = 0.0
+        placed.append(node)
+        cleanupMoveState()
+    }
+
+    private func cleanupMoveState() {
+        movingNode = nil
+        movingOriginalPosition = nil
+        previewNode = nil
+    }
+
     
     public func cancelPlacement() {
         previewNode?.removeFromParent()
@@ -204,6 +276,12 @@ public final class DecorManager {
     
     public func applyLoadedDecor(_ models: [DecorItem]) {
         guard let scene = scene else { return }
+        
+        for node in placed {
+            node.removeFromParent()
+        }
+        placed.removeAll()
+
         for m in models {
             let node = m.makeSprite()
             scene.addChild(node)
