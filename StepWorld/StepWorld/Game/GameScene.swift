@@ -843,7 +843,7 @@ final class GameScene: SKScene {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // Optional: keep this if you still want drag-to-aim during placement.
+        
         if let t = touches.first, decorManager?.isInteracting == true {
             decorManager?.movePreview(to: t.location(in: self))
         }
@@ -867,12 +867,13 @@ final class GameScene: SKScene {
 
         //If currently placing décor: single tap = try to place here
         if decorManager?.isPlacing == true {
-            if decorManager?.confirmPlacement(at: loc) == true {
-                updatePanBehaviorForPlacement()
-                triggerMapChanged()
-            }
-                return
-        }
+            let placed = decorManager?.confirmPlacement(at: loc) ?? false
+                    if placed {
+                        updatePanBehaviorForPlacement()
+                        triggerMapChanged()
+                    }
+                    return
+                }
         // 3) Not in decor mode; tap on decor starts moving that decor
         if let decor = tapped.first(where: { $0.name == "decor" }) as? SKSpriteNode {
                 decorManager?.beginMove(node: decor)

@@ -276,6 +276,12 @@ public final class DecorManager {
     
     public func applyLoadedDecor(_ models: [DecorItem]) {
         guard let scene = scene else { return }
+        
+        for node in placed {
+            node.removeFromParent()
+        }
+        placed.removeAll()
+
         for m in models {
             let node = m.makeSprite()
             scene.addChild(node)
