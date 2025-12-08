@@ -248,9 +248,142 @@ final class GameScene: SKScene {
             self?.isQuakeShaking = false
         }
     }
+    
+    
+    // MARK: - NPCs
+    private var villagers: [SKSpriteNode] = []
+
+    // MARK: - Villagers (NPCs)
+
+    private func spawnVillager(at position: CGPoint) {
+        // Use your villager sprite name from Assets (e.g. "Villager", "Villager1")
+        let texture = SKTexture(imageNamed: "Villager1")
+        texture.filteringMode = .nearest   // keep pixel art crisp if you're using it
+
+        let npc = SKSpriteNode(texture: texture)
+        npc.name = "villager1"
+        npc.zPosition = 20     // above buildings, below HUD
+        npc.position = position
+        npc.setScale(1.2)      // tweak to your art
+
+        addChild(npc)
+        villagers.append(npc)
+
+        runVillagerPanicAnimation(npc)
+    }
+    
+    private func spawnVillagersFromHouses(countPerHouse: Int = 15) {
+        for house in buildings where (house.userData?["type"] as? String) == "House" {
+            for _ in 0..<countPerHouse {
+                let villagerTexture = SKTexture(imageNamed: "Villager1")
+                villagerTexture.filteringMode = .nearest   // crisp
+                let villager = SKSpriteNode(texture: villagerTexture)
+                villager.zPosition = 6
+                villager.position = CGPoint(
+                    x: house.position.x + 0,
+                    y: house.position.y + 20
+                )
+                villager.setScale(1.2) // or whatever looked good before
+
+                if villager.userData == nil { villager.userData = [:] }
+                villager.userData?["dead"] = false
+
+                addChild(villager)
+
+                // start panic running
+                runVillagerPanicAnimation(villager)
+
+                // 🔥 lifetime: 3s alive running, 1s dead before fade, 1s fading out
+                let lifetime: TimeInterval = 3.0
+                let deadHold: TimeInterval = 1.0
+                let fadeDuration: TimeInterval = 1.0
+
+                let deathSequence = SKAction.sequence([
+                    .wait(forDuration: lifetime),
+                    .run { [weak villager] in
+                        guard let v = villager else { return }
+
+                        if v.userData == nil { v.userData = [:] }
+                        v.userData?["dead"] = true
+
+                        v.removeAction(forKey: "panicMove")
+
+                        // 🔄 swap to dead sprite, keep it crisp and NOT stretched
+                        let deadTexture = SKTexture(imageNamed: "Villager1_dead")
+                        deadTexture.filteringMode = .nearest
+                        v.texture = deadTexture
+                        v.size = deadTexture.size()
+                        v.setScale(1.6)
+                    },
+                    .wait(forDuration: deadHold),
+                    .fadeOut(withDuration: fadeDuration),
+                    .removeFromParent()
+                ])
+
+
+                villager.run(deathSequence, withKey: "lifetime")
+            }
+        }
+    }
 
 
     
+    private func randomPointInMap() -> CGPoint {
+        let worldSize: CGSize = mapInfo?.pixelSize ?? background.size
+        let halfW = worldSize.width * 0.5
+        let halfH = worldSize.height * 0.5
+
+        let x = CGFloat.random(in: -halfW...halfW)
+        let y = CGFloat.random(in: -halfH...halfH)
+        return CGPoint(x: x, y: y)
+    }
+
+    private func runVillagerPanicAnimation(_ npc: SKSpriteNode) {
+        // if already removed or marked dead, do nothing
+        if npc.parent == nil { return }
+        if (npc.userData?["dead"] as? Bool) == true { return }
+
+        guard let mapSize = mapInfo?.pixelSize ?? background?.size else { return }
+
+        let halfW = mapSize.width * 0.5
+        let halfH = mapSize.height * 0.5
+        let target = CGPoint(
+            x: CGFloat.random(in: -halfW...halfW),
+            y: CGFloat.random(in: -halfH...halfH)
+        )
+
+        let speed: CGFloat = 1000  // same as before or tweak
+        let dx = target.x - npc.position.x
+        let dy = target.y - npc.position.y
+        let distance = hypot(dx, dy)
+        let duration = TimeInterval(distance / speed)
+
+        // flip horizontally to face direction (optional)
+        if abs(dx) > 5 {
+            npc.xScale = dx >= 0 ? abs(npc.xScale) : -abs(npc.xScale)
+        }
+
+        let move = SKAction.move(to: target, duration: duration)
+        move.timingMode = .linear  // constant speed
+
+        let sequence = SKAction.sequence([
+            move,
+            .run { [weak self, weak npc] in
+                guard let self, let npc else { return }
+                // Only keep running if not dead
+                if (npc.userData?["dead"] as? Bool) != true {
+                    self.runVillagerPanicAnimation(npc)
+                }
+            }
+        ])
+
+        // use a key so we can stop this later
+        npc.run(sequence, withKey: "panicMove")
+    }
+
+
+
+
     // MARK: - Scene lifecycle
     override func didMove(to view: SKView) {
         // Run setup only once per scene instance
@@ -1640,6 +1773,7 @@ final class GameScene: SKScene {
             }
             if anyChanged {
                 self.playLoopingSFX("HouseBreak", loops: 1, volume: 1.0, clipDuration: 1.0)
+                self.spawnVillagersFromHouses()
                 self.triggerMapChanged()
             }
         }
@@ -1751,7 +1885,7 @@ extension GameScene {
     }
 }
 
-//MARK: Earthquak functions
+//MARK: Earthquake functions
 extension GameScene {
     func applyEarthquakeDamage() {
         for node in buildings {
