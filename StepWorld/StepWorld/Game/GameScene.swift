@@ -151,7 +151,7 @@ final class GameScene: SKScene {
     }
     //requires two fingers to drag map so decorations can be moved
     private func updatePanBehaviorForPlacement() {
-        if decorManager?.isPlacing == true {
+        if decorManager?.isInteracting == true {
             panGR?.minimumNumberOfTouches = 2   // two-finger pan while placing
         } else {
             panGR?.minimumNumberOfTouches = 1   // normal map pan
@@ -715,7 +715,7 @@ final class GameScene: SKScene {
     //makes ghost follow cursor
     @available(iOS 13.4, *)
     @objc private func hoverMoved(_ sender: UIHoverGestureRecognizer) {
-        guard decorManager?.isPlacing == true, let view = self.view else { return }
+        guard decorManager?.isInteracting == true, let view = self.view else { return }
         let pView  = sender.location(in: view)
         let pScene = convertPoint(fromView: pView)
         switch sender.state {
@@ -836,7 +836,7 @@ final class GameScene: SKScene {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         // If we're placing decor, a simple click should move the ghost to the cursor immediately.
-        if let t = touches.first, decorManager?.isPlacing == true {
+        if let t = touches.first, decorManager?.isInteracting == true {
             decorManager?.movePreview(to: t.location(in: self))
         }
         super.touchesBegan(touches, with: event)
@@ -844,7 +844,7 @@ final class GameScene: SKScene {
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         // Optional: keep this if you still want drag-to-aim during placement.
-        if let t = touches.first, decorManager?.isPlacing == true {
+        if let t = touches.first, decorManager?.isInteracting == true {
             decorManager?.movePreview(to: t.location(in: self))
         }
         super.touchesMoved(touches, with: event)
@@ -856,7 +856,14 @@ final class GameScene: SKScene {
         let tapped = nodes(at: loc)
         let top = atPoint(loc)
         
-        
+        // 1) If currently moving decor: drop it here
+           if decorManager?.isMoving == true {
+               if decorManager?.confirmMove(at: loc) == true {
+                   updatePanBehaviorForPlacement()
+                   triggerMapChanged()
+               }
+               return
+           }
 
         //If currently placing décor: single tap = try to place here
         if decorManager?.isPlacing == true {
@@ -866,7 +873,14 @@ final class GameScene: SKScene {
             }
                 return
         }
-            if let menu = buildMenu, top.inParentHierarchy(menu) {
+        // 3) Not in decor mode; tap on decor starts moving that decor
+        if let decor = tapped.first(where: { $0.name == "decor" }) as? SKSpriteNode {
+                decorManager?.beginMove(node: decor)
+                updatePanBehaviorForPlacement()
+                return
+            }
+        
+        if let menu = buildMenu, top.inParentHierarchy(menu) {
                     if handleManageMenuTap(tapped) || handleBuildMenuTap(tapped) { return }
                     return // swallow taps on menu background — don’t open build menu
                 }
