@@ -23,7 +23,7 @@ final class GameScene: SKScene {
 
     // Plot visuals (subtle)
     private let plotGlow: CGFloat = 6.0           // was 16 (softer)
-    private let ringScale: CGFloat = 1.02
+    private let ringScale: CGFloat = 1.2
     private let ringAlpha: CGFloat = 0.35
 
     // Camera inertia
@@ -372,7 +372,7 @@ final class GameScene: SKScene {
                     allowed: ["Barn", "House"],
                     maxLevel: ["Barn": 4, "House": 2],
                     anchor: CGPoint(x: 0.5, y: 0.5),
-                    perBuildingAnchor: ["Barn": CGPoint(x: 0.50, y: 0.55)])
+                    perBuildingAnchor: ["Barn": CGPoint(x: 0.5, y: 0.55)])
         // Add more as needed...
     ]
     
@@ -388,8 +388,8 @@ final class GameScene: SKScene {
 
         // Convert normalized anchor → local offset from center:
         // (0.5,0.5) is center → (0,0) offset. (1,1) is top-right → (+halfW,+halfH)
-        let halfW = size.width * 0.5
-        let halfH = size.height * 0.5
+        let halfW = size.width * 0.5 * ringScale
+        let halfH = size.height * 0.5 * ringScale
         let local = CGPoint(
             x: (anchor.x - 0.5) * (size.width),
             y: (anchor.y - 0.5) * (size.height)
@@ -605,8 +605,9 @@ final class GameScene: SKScene {
             return n
         }
 
-        let halfW = size.width  * 0.5
-        let halfH = size.height * 0.5
+        let halfW = size.width  * 0.5 * ringScale
+        let halfH = size.height * 0.5 * ringScale
+        
         let inset: CGFloat = 2
 
         let tl = makeCorner(x: -halfW + inset, y:  halfH - inset, flipX: false, flipY: true)
