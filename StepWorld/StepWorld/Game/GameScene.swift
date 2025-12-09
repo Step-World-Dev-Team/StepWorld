@@ -436,11 +436,15 @@ final class GameScene: SKScene {
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
-        background = SKSpriteNode(imageNamed: "EvenBiggerMap") // Was FarmBackground
+        let bgTexture = SKTexture(imageNamed: "EvenBiggerMap")
+        bgTexture.filteringMode = .nearest      // 👈 crisp, no blur
+
+        background = SKSpriteNode(texture: bgTexture)
         background.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         background.position = .zero
         background.zPosition = -10
         addChild(background)
+
         
         // start background music
         configureAudioSession()
@@ -1500,8 +1504,10 @@ final class GameScene: SKScene {
         
         let sprite: SKSpriteNode
 
-        if UIImage(named: fullName) != nil {
-            sprite = SKSpriteNode(imageNamed: fullName)
+        if let image = UIImage(named: fullName) {
+            let tex = SKTexture(image: image)
+            tex.filteringMode = .nearest
+            sprite = SKSpriteNode(texture: tex)
         } else {
             sprite = SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
             print("⚠️ Asset '\(fullName)' not found. Using placeholder.")
@@ -1594,8 +1600,10 @@ final class GameScene: SKScene {
             
             
             if let newImage = UIImage(named: newTextureName) {
-                building.texture = SKTexture(imageNamed: newTextureName)
-                building.size = building.texture!.size()
+                let tex = SKTexture(imageNamed: newTextureName)
+                tex.filteringMode = .nearest
+                building.texture = tex
+                building.size = tex.size()
                 building.userData?["level"] = nextLevel
                 print("\(type) upgraded to level \(nextLevel)")
                 triggerMapChanged()
@@ -1773,6 +1781,12 @@ final class GameScene: SKScene {
         }
     }
 
+    private func crispTexture(named name: String) -> SKTexture {
+        let tex = SKTexture(imageNamed: name)
+        tex.filteringMode = .nearest
+        return tex
+    }
+    
     private func textureName(for node: SKSpriteNode, broken: Bool? = nil) -> String? {
         let type  = (node.userData?["type"] as? String) ?? ""
         let skin  = (node.userData?["skin"] as? String)
@@ -1787,14 +1801,17 @@ final class GameScene: SKScene {
     private func applyTexture(_ node: SKSpriteNode, broken: Bool? = nil) {
         let isBroken = broken ?? ((node.userData?["broken"] as? Bool) ?? false)
         if let name = textureName(for: node, broken: isBroken) {
-            node.texture = SKTexture(imageNamed: name)
-            node.size    = node.texture!.size()
+            let tex = crispTexture(named: name)          // 👈 use helper
+            node.texture = tex
+            node.size    = tex.size()
             if node.userData == nil { node.userData = [:] }
             node.userData?["broken"] = isBroken
         } else {
-            print("⚠️ Missing texture for \(String(describing: node.userData?["type"])) level \(String(describing: node.userData?["level"])) broken=\(isBroken)")
+            print("⚠️ Missing texture for \(String(describing: node.userData?["type"])) " +
+                  "level \(String(describing: node.userData?["level"])) broken=\(isBroken)")
         }
     }
+
 
     // One-off breakers/repairers
     private func breakBuilding(_ node: SKSpriteNode) {
@@ -1862,8 +1879,9 @@ final class GameScene: SKScene {
 
         let texName = isBroken ? "Broken\(resolved)_L\(level)" : "\(resolved)_L\(level)"
         if UIImage(named: texName) != nil {
-            node.texture = SKTexture(imageNamed: texName)
-            node.size = node.texture!.size()
+            let tex = crispTexture(named: texName)
+            node.texture = tex
+            node.size = tex.size()
         } else {
             print("⚠️ Missing texture \(texName)")
         }
@@ -1948,6 +1966,14 @@ extension GameScene {
     func applyLoadedDecor(_ models: [DecorItem]) {
         decorManager.applyLoadedDecor(models)
     }
+    /// Remove all decorations from the scene and notify the map manager
+        func clearAllDecor() {
+            // This removes all existing decor nodes & internal state
+            decorManager.applyLoadedDecor([])
+
+            // Reuse your existing save hook so the DB sees "no decor"
+            triggerMapChanged()
+        }
 }
 
 //MARK: Earthquake functions
@@ -1962,8 +1988,9 @@ extension GameScene {
             let level = (node.userData?["level"] as? Int)
             let tex = textureName(baseType: type, skin: skin, level: level, damaged: true)
             if UIImage(named: tex) != nil {
-                node.texture = SKTexture(imageNamed: tex)
-                node.size = node.texture!.size()
+                let t = crispTexture(named: tex)
+                node.texture = t
+                node.size = t.size()
             }
         }
         triggerMapChanged()              // will persist via MapManager
