@@ -14,7 +14,7 @@ import AVFoundation
 final class GameScene: SKScene {
 
     // MARK: - Config
-    private let tmxName = "BiggerMap"
+    private let tmxName = "EvenBiggerMap"
     private let plotLayerName = "Building"        // must match Tiled Object Layer name exactly
 
     private let minZoom: CGFloat = 0.25 // was 0.55
@@ -23,7 +23,7 @@ final class GameScene: SKScene {
 
     // Plot visuals (subtle)
     private let plotGlow: CGFloat = 6.0           // was 16 (softer)
-    private let ringScale: CGFloat = 1.02
+    private let ringScale: CGFloat = 1.2
     private let ringAlpha: CGFloat = 0.35
 
     // Camera inertia
@@ -151,7 +151,7 @@ final class GameScene: SKScene {
     }
     //requires two fingers to drag map so decorations can be moved
     private func updatePanBehaviorForPlacement() {
-        if decorManager?.isPlacing == true {
+        if decorManager?.isInteracting == true {
             panGR?.minimumNumberOfTouches = 2   // two-finger pan while placing
         } else {
             panGR?.minimumNumberOfTouches = 1   // normal map pan
@@ -261,7 +261,7 @@ final class GameScene: SKScene {
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
-        background = SKSpriteNode(imageNamed: "FarmBackground")
+        background = SKSpriteNode(imageNamed: "EvenBiggerMap") // Was FarmBackground
         background.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         background.position = .zero
         background.zPosition = -10
@@ -372,7 +372,7 @@ final class GameScene: SKScene {
                     allowed: ["Barn", "House"],
                     maxLevel: ["Barn": 4, "House": 2],
                     anchor: CGPoint(x: 0.5, y: 0.5),
-                    perBuildingAnchor: ["Barn": CGPoint(x: 0.50, y: 0.55)])
+                    perBuildingAnchor: ["Barn": CGPoint(x: 0.5, y: 0.55)])
         // Add more as needed...
     ]
     
@@ -388,8 +388,8 @@ final class GameScene: SKScene {
 
         // Convert normalized anchor → local offset from center:
         // (0.5,0.5) is center → (0,0) offset. (1,1) is top-right → (+halfW,+halfH)
-        let halfW = size.width * 0.5
-        let halfH = size.height * 0.5
+        let halfW = size.width * 0.5 * ringScale
+        let halfH = size.height * 0.5 * ringScale
         let local = CGPoint(
             x: (anchor.x - 0.5) * (size.width),
             y: (anchor.y - 0.5) * (size.height)
@@ -605,8 +605,9 @@ final class GameScene: SKScene {
             return n
         }
 
-        let halfW = size.width  * 0.5
-        let halfH = size.height * 0.5
+        let halfW = size.width  * 0.5 * ringScale
+        let halfH = size.height * 0.5 * ringScale
+        
         let inset: CGFloat = 2
 
         let tl = makeCorner(x: -halfW + inset, y:  halfH - inset, flipX: false, flipY: true)
@@ -715,7 +716,7 @@ final class GameScene: SKScene {
     //makes ghost follow cursor
     @available(iOS 13.4, *)
     @objc private func hoverMoved(_ sender: UIHoverGestureRecognizer) {
-        guard decorManager?.isPlacing == true, let view = self.view else { return }
+        guard decorManager?.isInteracting == true, let view = self.view else { return }
         let pView  = sender.location(in: view)
         let pScene = convertPoint(fromView: pView)
         switch sender.state {
@@ -836,15 +837,15 @@ final class GameScene: SKScene {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         // If we're placing decor, a simple click should move the ghost to the cursor immediately.
-        if let t = touches.first, decorManager?.isPlacing == true {
+        if let t = touches.first, decorManager?.isInteracting == true {
             decorManager?.movePreview(to: t.location(in: self))
         }
         super.touchesBegan(touches, with: event)
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // Optional: keep this if you still want drag-to-aim during placement.
-        if let t = touches.first, decorManager?.isPlacing == true {
+        
+        if let t = touches.first, decorManager?.isInteracting == true {
             decorManager?.movePreview(to: t.location(in: self))
         }
         super.touchesMoved(touches, with: event)
@@ -856,17 +857,32 @@ final class GameScene: SKScene {
         let tapped = nodes(at: loc)
         let top = atPoint(loc)
         
-        
+        // 1) If currently moving decor: drop it here
+           if decorManager?.isMoving == true {
+               if decorManager?.confirmMove(at: loc) == true {
+                   updatePanBehaviorForPlacement()
+                   triggerMapChanged()
+               }
+               return
+           }
 
         //If currently placing décor: single tap = try to place here
         if decorManager?.isPlacing == true {
-            if decorManager?.confirmPlacement(at: loc) == true {
+            let placed = decorManager?.confirmPlacement(at: loc) ?? false
+                    if placed {
+                        updatePanBehaviorForPlacement()
+                        triggerMapChanged()
+                    }
+                    return
+                }
+        // 3) Not in decor mode; tap on decor starts moving that decor
+        if let decor = tapped.first(where: { $0.name == "decor" }) as? SKSpriteNode {
+                decorManager?.beginMove(node: decor)
                 updatePanBehaviorForPlacement()
-                triggerMapChanged()
-            }
                 return
-        }
-            if let menu = buildMenu, top.inParentHierarchy(menu) {
+            }
+        
+        if let menu = buildMenu, top.inParentHierarchy(menu) {
                     if handleManageMenuTap(tapped) || handleBuildMenuTap(tapped) { return }
                     return // swallow taps on menu background — don’t open build menu
                 }
@@ -1514,6 +1530,22 @@ final class GameScene: SKScene {
             addBuilding(sprite)
         }
         print("✅ Loaded \(models.count) buildings into scene.")
+        
+        for plot in plotNodes {
+            let occupied = isPlotOccupied(plot)
+
+            if occupied {
+                // Remove sign if there is a building on this plot
+                plot.childNode(withName: "forSaleSign")?.removeFromParent()
+            } else {
+                // Add sign if empty and sign missing
+                if plot.childNode(withName: "forSaleSign") == nil {
+                    let size = (plot.userData?["plotSize"] as? NSValue)?.cgSizeValue
+                        ?? (plot.path?.boundingBox.size ?? .zero)
+                    attachForSaleSign(to: plot, plotSize: size)
+                }
+            }
+        }
     }
     
     // determines amount that will be refunded based on level

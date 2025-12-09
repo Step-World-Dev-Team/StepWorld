@@ -15,7 +15,6 @@ struct AchievementBannerView: View {
     var body: some View {
         VStack {
             HStack {
-                // TODO: swap emoji for a pixel-art icon later
                 Image("TrophyEmoji")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
