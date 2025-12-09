@@ -22,13 +22,13 @@ final class MapManager: ObservableObject {
     var scene: GameScene
     private var pendingSave: DispatchWorkItem?
     
-
+    
     // MARK: Pop-Up Variables
     private let defaults = UserDefaults.standard
     private let kLastSeenSteps   = "last_seen_steps"
     private let kLastSeenBalance = "last_seen_balance"
     private let kLastSeenAt      = "last_seen_at"
-   
+    
     init() {
         // one scene for the whole app session
         self.scene = GameScene(size: UIScreen.main.bounds.size)
@@ -108,12 +108,12 @@ final class MapManager: ObservableObject {
             }
         }()
         async let diff: Difficulty? = {
-              do {
-                  return try await UserManager.shared.getDifficulty(userId: uid)
-              } catch {
-                  return nil
-              }
-          }()
+            do {
+                return try await UserManager.shared.getDifficulty(userId: uid)
+            } catch {
+                return nil
+            }
+        }()
         
         let (s, b, d) = await (steps, coins, diff)
         await MainActor.run {
@@ -131,42 +131,37 @@ final class MapManager: ObservableObject {
             return
         }
         
-        Task {
-            do {
-                let buildings: [Building] = try await UserManager.shared.fetchMapBuildings(userId: uid)
-                guard !buildings.isEmpty else {
-                    print("ℹ️ No saved buildings yet.")
-                    return
-                }
-                // We're on @MainActor already (MapManager is @MainActor), so just call it.
-                self.loadBuildingData(buildings)
-                
-                let decor = try await UserManager.shared.fetchDecor(userId: uid)
-                guard !decor.isEmpty else {
-                    print("No saved decore yet.")
-                    return
-                }
-                self.scene.applyLoadedDecor(decor)
-                
-                print("✅ Loaded \(buildings.count) buildings & \(decor.count) decor from backend.")
-                
-                do {
-                    let state = try await UserManager.shared.fetchSkinState(userId: uid)
-                    self.inventory.ownedSkins = Set(state.owned)
-                    self.equipped = state.equipped
-                    // Apply equipped skins to currently loaded buildings
-                    await MainActor.run { [weak self] in
-                        guard let s = self?.scene else { return }
-                        for (base, skin) in state.equipped { s.equipSkin(baseType: base, skin: skin) }
-                    }
-                } catch {
-                    print("fetchSkinState failed:", error.localizedDescription)
-                }
-            } catch {
-                let ns = error as NSError
-                print("❌ fetchMapBuildings failed:", ns.localizedDescription, ns.domain, ns.code, ns.userInfo)
-            }
+        // 1) Buildings
+        let buildings = try await UserManager.shared.fetchMapBuildings(userId: uid)
+        if buildings.isEmpty {
+            print("ℹ️ No saved buildings yet.")
+        } else {
+            self.loadBuildingData(buildings)
         }
+        
+        // 2) Decor – don’t bail if empty; just skip applying
+        let decor = try await UserManager.shared.fetchDecor(userId: uid)
+        if decor.isEmpty {
+            print("ℹ️ No saved decor yet.")
+        } else {
+            self.scene.applyLoadedDecor(decor)
+        }
+        
+        // 3) Skins – ALWAYS try to load skin state, regardless of decor
+        do {
+            let state = try await UserManager.shared.fetchSkinState(userId: uid)
+            let ownedSet = Set(state.owned)
+            
+            self.inventory.ownedSkins = ownedSet
+            self.equipped = state.equipped
+            
+            scene.applySkinStateFromServer(owned: ownedSet, equipped: state.equipped)
+            print("✅ Restored skins. owned=\(ownedSet) equipped=\(state.equipped)")
+        } catch {
+            print("fetchSkinState failed:", error.localizedDescription)
+        }
+        
+        print("✅ Loaded buildings, decor and skins for \(uid)")
     }
     
     @MainActor
@@ -182,6 +177,12 @@ final class MapManager: ObservableObject {
         
         // assign and keep reference
         self.scene = newScene
+        
+        // 🔹 Clear client-side state tied to the previous user
+        inventory = Inventory()
+        equipped.removeAll()
+        balance = 0
+        todaySteps = 0
     }
     
     // MARK: Refresh Functions
@@ -205,9 +206,9 @@ final class MapManager: ObservableObject {
             catch { return currentBalance }   // ⬅️ use snapshot
         }()
         async let diff: Difficulty? = {
-                do { return try await UserManager.shared.getDifficulty(userId: uid) }
-                catch { return nil }
-            }()
+            do { return try await UserManager.shared.getDifficulty(userId: uid) }
+            catch { return nil }
+        }()
         
         let (s, b, d) = await (steps, coins, diff)
         self.todaySteps = s
@@ -256,7 +257,7 @@ final class MapManager: ObservableObject {
             print("❌ Purchase skin failed: \(error.localizedDescription)")
         }
     }
-
+    
     func equipSkin(baseType: String, skin: String) {
         let key = "\(baseType)#\(skin)"
         guard inventory.ownedSkins.contains(key) else { return }
@@ -330,7 +331,7 @@ final class MapManager: ObservableObject {
             print("Disaster check failed:", error.localizedDescription)
         }
     }
-
+    
     
     // MARK: Skin Persistency
     func persistSkins() async {
@@ -351,7 +352,7 @@ final class MapManager: ObservableObject {
         let lastB = defaults.object(forKey: kLastSeenBalance) as? Int ?? 0
         return (todaySteps - lastS, balance - lastB)
     }
-
+    
     /// Call this when the popup is dismissed (i.e., the user has "seen" these values).
     func markStatsAsSeenNow() {
         defaults.set(todaySteps, forKey: kLastSeenSteps)
@@ -360,9 +361,9 @@ final class MapManager: ObservableObject {
     }
     //MARK: Difficulty Helpers
     private func applyDifficulty(_ diff: Difficulty?) {
-           let resolved = diff ?? .easy
-           difficulty = resolved
-           dailyStepGoal = resolved.dailyStepGoal
-       }
+        let resolved = diff ?? .easy
+        difficulty = resolved
+        dailyStepGoal = resolved.dailyStepGoal
+    }
     
 }

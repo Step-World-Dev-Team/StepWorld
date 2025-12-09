@@ -64,11 +64,11 @@ final class AchievementsManager {
         .lifetime30k: .init(id: .lifetime30k, title: "Walk 30,000 steps total", target: 30_000, rewardCoins: 2000),
         .lifetime50k: .init(id: .lifetime50k, title: "Walk 50,000 steps total", target: 50_000, rewardCoins: 3000),
         
-        .firstBuilding: .init(id: .firstBuilding, title: "Build your first building", target: 1, rewardCoins: 100),
+            .firstBuilding: .init(id: .firstBuilding, title: "Build your first building", target: 1, rewardCoins: 100),
         .firstDecor:    .init(id: .firstDecor,    title: "Place your first decor",    target: 1, rewardCoins: 75),
         .firstSkin:     .init(id: .firstSkin,     title: "Buy your first skin",       target: 1, rewardCoins: 75),
         
-        .day5k:   .init(id: .day5k,   title: "Reach 5,000 steps in a day",  target: 5_000,  rewardCoins: 1000),
+            .day5k:   .init(id: .day5k,   title: "Reach 5,000 steps in a day",  target: 5_000,  rewardCoins: 1000),
         .day7_5k: .init(id: .day7_5k, title: "Reach 7,500 steps in a day",  target: 7_500,  rewardCoins: 2000),
         .day10k:  .init(id: .day10k,  title: "Reach 10,000 steps in a day", target: 10_000, rewardCoins: 3000),
         .day12k:  .init(id: .day12k,  title: "Reach 12,000 steps in a day", target: 12_000, rewardCoins: 4000)
@@ -85,6 +85,41 @@ final class AchievementsManager {
     
     private func achievementDoc(_ userId: String, _ id: AchievementId) -> DocumentReference {
         achievementsCollection(userId).document(id.rawValue)
+    }
+    
+    // MARK: - Seeding for new users
+    /// Create zero-progress Firestore docs for all achievements
+    /// for a brand-new user. Safe to call multiple times; existing docs
+    /// will just be overwritten/merged with the same values.
+    func seedAllAchievementsForNewUser(userId: String) async {
+        let now = Date()
+        
+        for id in AchievementId.allCases {
+            guard let def = definitions[id] else { continue }
+            
+            let ref = achievementDoc(userId, id)
+            
+            let ach = DBAchievement(
+                id: id.rawValue,
+                progress: 0,
+                target: def.target,
+                isCompleted: false,
+                isClaimed: false,
+                createdAt: now,
+                updatedAt: now,
+                completedAt: nil,
+                claimedAt: nil
+            )
+            
+            do {
+                // ✅ use FirestoreSwift's async Codable API
+                try await ref.setData(from: ach, merge: true)
+            } catch {
+                print("⚠️ Failed to seed achievement \(id.rawValue): \(error)")
+            }
+        }
+        
+        print("✅ Seeded achievements for new user \(userId)")
     }
     
     // MARK: - Public APIs the rest of the app calls
@@ -270,25 +305,35 @@ final class AchievementsManager {
         
         do {
             let snap = try await ref.getDocument()
+            let now = Date()
+            
             if snap.exists {
-                // Already at least created; don’t overwrite (could already be completed)
-                return
+                var existing = try snap.data(as: DBAchievement.self)
+                // If already completed, do nothing
+                if existing.isCompleted { return }
+                
+                existing.progress = 1
+                existing.isCompleted = true
+                existing.updatedAt = now
+                existing.completedAt = now
+                
+                try await ref.setData(from: existing, merge: true)
+            } else {
+                let ach = DBAchievement(
+                    id: id.rawValue,
+                    progress: 1,
+                    target: def.target,
+                    isCompleted: true,
+                    isClaimed: false,
+                    createdAt: now,
+                    updatedAt: now,
+                    completedAt: now,
+                    claimedAt: nil
+                )
+                try await ref.setData(from: ach, merge: true)
             }
             
-            let now = Date()
-            let ach = DBAchievement(
-                id: id.rawValue,
-                progress: 1,
-                target: def.target,
-                isCompleted: true,
-                isClaimed: false,
-                createdAt: now,
-                updatedAt: now,
-                completedAt: now,
-                claimedAt: nil
-            )
-            try ref.setData(from: ach, merge: true)
-            print("✅ Successfully wrote achievement \(id.rawValue) to Firestore")
+            print("✅ Successfully updated event achievement \(id.rawValue)")
             postUnlocked(id: id)
         } catch {
             print("⚠️ Failed to mark event achievement \(id.rawValue): \(error)")

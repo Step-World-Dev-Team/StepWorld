@@ -1659,6 +1659,16 @@ final class GameScene: SKScene {
             attachForSaleSign(to: plot, plotSize: size)
         }
     }
+    
+    // MARK: - Server skin state bridge
+    func applySkinStateFromServer(owned: Set<String>, equipped: [String:String]) {
+        ownedSkins = owned
+        equippedSkinForType = equipped
+
+        for (base, skin) in equipped {
+            applySkinToAllBuildings(of: base, skin: skin)
+        }
+    }
 
 
     // MARK: - MapManager helpers
