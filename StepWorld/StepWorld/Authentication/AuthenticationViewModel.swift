@@ -35,31 +35,35 @@ final class AuthenticationViewModel: ObservableObject {
     }
     
     private func signUp() async throws -> AuthDataResultModel {
-            guard !email.isEmpty, !password.isEmpty else {
-                throw NSError(domain: "SignUp", code: 0,
-                              userInfo: [NSLocalizedDescriptionKey: "Email or password missing"])
-            }
-        
-            guard password.count >= 6 else {
-                throw NSError(domain: "SignUp", code: 2,
-                              userInfo: [NSLocalizedDescriptionKey: "Password must be at least 6 characters"])
-            }
-
-            var auth = try await AuthenticationManager.shared.createUser(email: email, password: password)
-
-            // optionally set display name
-            if !displayName.trimmingCharacters(in: .whitespaces).isEmpty,
-               let user = AuthenticationManager.shared.currentUser {
-                let changeReq = user.createProfileChangeRequest()
-                changeReq.displayName = displayName
-                try await changeReq.commitChanges()
-                auth = try AuthenticationManager.shared.getAuthenticatedUser()
-            }
-
-            // Create Users/{uid} if missing
-            try await UserManager.shared.ensureUserExists(for: auth)
-            return auth
+        guard !email.isEmpty, !password.isEmpty else {
+            throw NSError(domain: "SignUp", code: 0,
+                          userInfo: [NSLocalizedDescriptionKey: "Email or password missing"])
         }
+        
+        guard password.count >= 6 else {
+            throw NSError(domain: "SignUp", code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: "Password must be at least 6 characters"])
+        }
+        
+        var auth = try await AuthenticationManager.shared.createUser(email: email, password: password)
+        
+        // optionally set display name
+        if !displayName.trimmingCharacters(in: .whitespaces).isEmpty,
+           let user = AuthenticationManager.shared.currentUser {
+            let changeReq = user.createProfileChangeRequest()
+            changeReq.displayName = displayName
+            try await changeReq.commitChanges()
+            auth = try AuthenticationManager.shared.getAuthenticatedUser()
+        }
+        
+        // Create Users/{uid} if missing
+        try await UserManager.shared.ensureUserExists(for: auth)
+        
+        // Seed all achievements for this brand-new user
+        await AchievementsManager.shared.seedAllAchievementsForNewUser(userId: auth.uid)
+        
+        return auth
+    }
     
     func signIn() async throws -> AuthDataResultModel{
         
