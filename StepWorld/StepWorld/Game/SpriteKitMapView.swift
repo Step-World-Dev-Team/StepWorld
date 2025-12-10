@@ -174,6 +174,7 @@ struct SpriteKitMapView: View {
                     .transition(.scale.combined(with: .opacity))
                     .zIndex(200) // higher than modal
                 }
+            }
                 // 🔔 Achievement banner (after change pop-up)
                 if showAchievementBanner, let currentId = pendingAchievements.first {
                     AchievementBannerView(
@@ -193,7 +194,7 @@ struct SpriteKitMapView: View {
                     }
                     .zIndex(240)
                 }
-            }
+            
             
             if isModalPresented {
                 ZStack {
