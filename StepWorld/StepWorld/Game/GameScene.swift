@@ -1240,7 +1240,7 @@ final class GameScene: SKScene {
         let totalHeight = CGFloat(allowed.count - 1) * lineSpacing
 
         for (index, name) in allowed.enumerated() {
-            let base = baseName(from: name)                // you already have baseName(from:)
+            let base = baseName(from: name)
             let preview = buildPreviewDescription(for: base)
 
             let label = SKLabelNode(text: "\(base): \(preview)")
@@ -1472,8 +1472,8 @@ final class GameScene: SKScene {
         let info = buildingDescription(type: bType, skin:skin, level: bLevel)
         // Background for info
             let infoBG = SKShapeNode(rectOf: CGSize(width: panelWidth - 40, height: infoBlockH), cornerRadius: 10)
-            infoBG.strokeColor = UIColor.white.withAlphaComponent(0.35)
-            infoBG.lineWidth = 1
+        infoBG.strokeColor = .clear
+            infoBG.lineWidth = 0
             infoBG.position = CGPoint(x: 0, y: title.position.y - 40)
             infoBG.zPosition = 1
             menu.addChild(infoBG)
