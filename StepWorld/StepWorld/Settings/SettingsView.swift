@@ -10,6 +10,7 @@ import FirebaseAuth
 
 struct SettingsView: View {
     var onClose: (() -> Void)? = nil
+    var onClearDecor: () -> Void
     var onSignOut: (() -> Void)? = nil
     
     @State private var showDifficultySettings = false
@@ -104,6 +105,23 @@ struct SettingsView: View {
                 .padding(.top, 12)
                 
                 Button(role: .destructive) {
+                    onClearDecor()
+                } label: {
+                    Text("CLEAR DECORATIONS")
+                        .font(.custom("Press Start 2P", size: 15))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                }
+                .background(Image("clear_button")
+                    .resizable()
+                    .frame(width: 280, height: 60)
+                )
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+                
+                
+                Button(role: .destructive) {
                     onSignOut?()
                 } label: {
                     Text("SIGN OUT")
@@ -159,6 +177,6 @@ struct SettingsView: View {
         }
     }
 }
-#Preview {
-    SettingsView()
-}
+//#Preview {
+//    SettingsView()
+//}
