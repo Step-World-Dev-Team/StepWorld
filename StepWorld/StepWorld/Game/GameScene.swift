@@ -42,7 +42,8 @@ final class GameScene: SKScene {
     private let buildingScaleOverrides: [String: CGFloat] = [
         "House": 1,
         "Barn":  1,
-        "Farm": 1
+        "Farm": 1,
+        "Blacksmith": 1
     ]
 
     // MARK: - Data
@@ -65,7 +66,7 @@ final class GameScene: SKScene {
 
     // MARK: - Build menu
     var buildMenu: SKNode?
-    private let availableBuildings = ["Barn", "House", "Farm"]
+    private let availableBuildings = ["Barn", "House", "Farm", "Blacksmith"]
     private let panelSprite  = "build_menu_background"
     private let buttonSprite = "clear_button"
     private let buttonSpriteCancel = "cancel_button"
@@ -359,7 +360,7 @@ final class GameScene: SKScene {
         // Example names match what you assign in TMX or in buildDebugPlots()
         // "top left plot" / "plot 1" → use the actual names you see in logs
         "Plot01": PlotRule(
-                    allowed: ["House"],
+                    allowed: ["House", "Blacksmith"],
                     maxLevel: ["House": 2],
                     anchor: CGPoint(x: 0.50, y: 0.6),
                     perBuildingAnchor: [:]),
@@ -369,10 +370,10 @@ final class GameScene: SKScene {
             anchor: CGPoint(x: 0.5, y: 0.5),
             perBuildingAnchor: ["Barn": CGPoint(x: 0.55, y: 0.55)]),
         "Plot03": PlotRule(
-                    allowed: ["Barn", "House"],
-                    maxLevel: ["Barn": 4, "House": 2],
+                    allowed: ["Barn", "House", "Farm"],
+                    maxLevel: ["Barn": 4, "House": 2, "Farm": 4],
                     anchor: CGPoint(x: 0.5, y: 0.5),
-                    perBuildingAnchor: ["Barn": CGPoint(x: 0.5, y: 0.55)])
+                    perBuildingAnchor: ["Barn": CGPoint(x: 0.5, y: 0.55), "Farm": CGPoint(x: 0.55, y: 0.75)])
         // Add more as needed...
     ]
     
@@ -1532,7 +1533,9 @@ final class GameScene: SKScene {
             let baseBuildingScale: CGFloat = 0.6
             let buildingScaleOverrides: [String: CGFloat] = [
                 "House": 1,
-                "Barn":  1
+                "Barn":  1,
+                "Farm": 1,
+                "Blacksmith": 1
             ]
             let scale = buildingScaleOverrides[m.type] ?? baseBuildingScale
             sprite.setScale(scale)
@@ -1573,6 +1576,8 @@ final class GameScene: SKScene {
             return 300
         case "Farm":
             return 200
+        case "Blacksmith":
+            return 300
         default:
             return 100
         }
@@ -1585,11 +1590,13 @@ final class GameScene: SKScene {
     private func buildPreviewDescription(for baseType: String) -> String {
         switch baseType {
         case "House":
-            return "Cost $200"
+            return "$200"
         case "Barn":
-            return "Cost $300"
+            return "$300"
         case "Farm":
-            return "Grows crops to earn more coins."
+            return "$200"
+        case "Blacksmith":
+            return "$300"
         default:
             return "A new building for your town."
         }
