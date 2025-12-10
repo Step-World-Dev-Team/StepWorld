@@ -284,60 +284,91 @@ final class GameScene: SKScene {
     }
 
     
-    private func spawnVillagersFromHouses(countPerHouse: Int = 15) {
-        for house in buildings where (house.userData?["type"] as? String) == "House" {
+    private func spawnVillagersFromHouses(countPerHouse: Int = 5) {
+        // 1) Collect all houses first
+        let houses = buildings.filter { ($0.userData?["type"] as? String) == "House" }
+
+        // Small base gap between spawns (seconds)
+        let baseDelay: TimeInterval = 0.06   // tweak: 0.03 = tighter, 0.1 = looser
+        var index = 0
+
+        for house in houses {
             for _ in 0..<countPerHouse {
-                let type = randomVillagerType()          // e.g. "Villager3"
+                // Slightly increasing delay + random jitter so it feels organic
+                let delay = baseDelay * Double(index) + Double.random(in: 0...0.12)
 
-                let villagerTexture = SKTexture(imageNamed: type)
-                villagerTexture.filteringMode = .nearest
-                let villager = SKSpriteNode(texture: villagerTexture)
-                villager.zPosition = 6
-                villager.position = CGPoint(
-                    x: house.position.x,
-                    y: house.position.y + 20
-                )
-                villager.setScale(1.2)
+                let spawnAction = SKAction.run { [weak self, weak house] in
+                    guard let self, let house else { return }
 
-                if villager.userData == nil { villager.userData = [:] }
-                villager.userData?["dead"] = false
-                villager.userData?["type"] = type
+                    // --- create villager sprite (same as before) ---
+                    let type = self.randomVillagerType()
 
-                addChild(villager)
+                    let villagerTexture = SKTexture(imageNamed: type)
+                    villagerTexture.filteringMode = .nearest
+                    let villager = SKSpriteNode(texture: villagerTexture)
+                    villager.zPosition = 6
+                    villager.position = CGPoint(
+                        x: house.position.x,
+                        y: house.position.y + 20
+                    )
+                    villager.setScale(1.2)
 
-                runVillagerPanicAnimation(villager)
+                    if villager.userData == nil { villager.userData = [:] }
+                    villager.userData?["dead"] = false
+                    villager.userData?["type"] = type
 
-                // random lifetime so they don't all die at once (optional but nice)
-                let lifetime = TimeInterval.random(in: 2.0...4.5)
-                let deadHold: TimeInterval = 1.0
-                let fadeDuration: TimeInterval = 1.0
+                    self.addChild(villager)
+                    self.villagers.append(villager)
 
-                let deathSequence = SKAction.sequence([
-                    .wait(forDuration: lifetime),
-                    .run { [weak villager] in
-                        guard let v = villager else { return }
+                    self.runVillagerPanicAnimation(villager)
 
-                        if v.userData == nil { v.userData = [:] }
-                        v.userData?["dead"] = true
-                        v.removeAction(forKey: "panicMove")
+                    self.playRandomVillagerScream()
+                
+                    // --- Death logic (unchanged, but now per villager) ---
+                    let lifetime = TimeInterval.random(in: 2.0...4.5)
+                    let deadHold: TimeInterval = 1.0
+                    let fadeDuration: TimeInterval = 1.0
 
-                        let type = (v.userData?["type"] as? String) ?? "Villager1"
-                        let deadTexture = SKTexture(imageNamed: "\(type)_dead")
-                        deadTexture.filteringMode = .nearest
+                    let deathSequence = SKAction.sequence([
+                        .wait(forDuration: lifetime),
+                        .run { [weak self, weak villager] in
+                            guard let self, let v = villager else { return }
 
-                        v.texture = deadTexture
-                        v.size = deadTexture.size()
-                        v.setScale(1.6)
-                    },
-                    .wait(forDuration: deadHold),
-                    .fadeOut(withDuration: fadeDuration),
-                    .removeFromParent()
+                            if v.userData == nil { v.userData = [:] }
+                            v.userData?["dead"] = true
+                            v.removeAction(forKey: "panicMove")
+
+                            let type = (v.userData?["type"] as? String) ?? "Villager1"
+                            let deadTexture = SKTexture(imageNamed: "\(type)_dead")
+                            deadTexture.filteringMode = .nearest
+
+                            v.texture = deadTexture
+                            v.size = deadTexture.size()
+                            v.setScale(1.6)
+
+                            // 🔊 death SFX
+                            self.playRandomVillagerDeath()
+                        },
+                        .wait(forDuration: deadHold),
+                        .fadeOut(withDuration: fadeDuration),
+                        .removeFromParent()
+                    ])
+
+                    villager.run(deathSequence, withKey: "lifetime")
+                }
+
+                // 2) Schedule this villager to spawn after `delay`
+                let seq = SKAction.sequence([
+                    .wait(forDuration: delay),
+                    spawnAction
                 ])
+                self.run(seq)
 
-                villager.run(deathSequence, withKey: "lifetime")
+                index += 1
             }
         }
     }
+
 
     //debugging:
     /*private func debugDrawIslandRect() {
@@ -423,7 +454,36 @@ final class GameScene: SKScene {
         npc.run(sequence, withKey: "panicMove")
     }
 
+    // MARK: - Villager SFX
+    private let villagerScreamSounds = [
+        "Scream1",
+        "Scream2",
+        "Scream3"
+        // just add more here later
+    ]
 
+    private let villagerDeathSounds = [
+        "DeathSound1",
+        "DeathSound2",
+    ]
+    
+    private func playOneShotSFX(_ name: String) {
+        // Expects `name.mp3` in the bundle
+        let action = SKAction.playSoundFileNamed("\(name).mp3", waitForCompletion: false)
+        run(action)
+    }
+
+
+    private func playRandomVillagerScream() {
+        guard let name = villagerScreamSounds.randomElement() else { return }
+        playOneShotSFX(name)
+    }
+
+
+    private func playRandomVillagerDeath() {
+        guard let name = villagerDeathSounds.randomElement() else { return }
+        playOneShotSFX(name)
+    }
 
 
     // MARK: - Scene lifecycle
@@ -1039,67 +1099,74 @@ final class GameScene: SKScene {
         let loc = t.location(in: self)
         let tapped = nodes(at: loc)
         let top = atPoint(loc)
-        
-        // 1) If currently moving decor: drop it here
-           if decorManager?.isMoving == true {
-               if decorManager?.confirmMove(at: loc) == true {
-                   updatePanBehaviorForPlacement()
-                   triggerMapChanged()
-               }
-               return
-           }
 
-        //If currently placing décor: single tap = try to place here
-        if decorManager?.isPlacing == true {
-            let placed = decorManager?.confirmPlacement(at: loc) ?? false
-                    if placed {
-                        updatePanBehaviorForPlacement()
-                        triggerMapChanged()
-                    }
-                    return
-                }
-        // 3) Not in decor mode; tap on decor starts moving that decor
-        if let decor = tapped.first(where: { $0.name == "decor" }) as? SKSpriteNode {
-                decorManager?.beginMove(node: decor)
-                updatePanBehaviorForPlacement()
+        // 0) If tap is on an open menu, handle ONLY the menu and bail out
+        if let menu = buildMenu, top.inParentHierarchy(menu) {
+            if handleManageMenuTap(tapped) || handleBuildMenuTap(tapped) {
                 return
             }
-        
-        if let menu = buildMenu, top.inParentHierarchy(menu) {
-                    if handleManageMenuTap(tapped) || handleBuildMenuTap(tapped) { return }
-                    return // swallow taps on menu background — don’t open build menu
-                }
-        // 🚫 Ignore taps on the "For Sale" sign (and anything inside it)
+            // Even if no button was hit, don't let the tap fall through to decor/plots
+            return
+        }
+
+        // 1) If currently moving decor: drop it here
+        if decorManager?.isMoving == true {
+            if decorManager?.confirmMove(at: loc) == true {
+                updatePanBehaviorForPlacement()
+                triggerMapChanged()
+            }
+            return
+        }
+
+        // 2) If currently placing decor: tap = try place here
+        if decorManager?.isPlacing == true {
+            let placed = decorManager?.confirmPlacement(at: loc) ?? false
+            if placed {
+                updatePanBehaviorForPlacement()
+                triggerMapChanged()
+            }
+            return
+        }
+
+        // 3) Not in decor mode; tap on decor starts moving that decor
+        if let decor = tapped.first(where: { $0.name == "decor" }) as? SKSpriteNode {
+            decorManager?.beginMove(node: decor)
+            updatePanBehaviorForPlacement()
+            return
+        }
+
+        // 4) Ignore taps on For Sale sign
         var s: SKNode? = top
         while let cur = s, cur.name != "forSaleSign" { s = cur.parent }
         if s?.name == "forSaleSign" { return }
-        
-        // Only react if the TOPMOST hit is a plot (or inside one)
-            var n: SKNode? = top
-            while let cur = n, cur.name != "plot" { n = cur.parent }
-            if let plot = n as? SKShapeNode {
-                for p in plotNodes { setPlotSelected(p, selected: false) }
-                setPlotSelected(plot, selected: true)
-                selectedPlot = plot
-                if isPlotOccupied(plot) {
-                    if let bld = building(on: plot) {
-                        let isBroken = (bld.userData?["broken"] as? Bool) ?? false
-                        if isBroken {
-                            showRepairMenu(for: bld)   // <- NEW
-                        } else {
-                            showManageMenu(for: bld)   // existing
-                        }
+
+        // 5) Plot selection / build/repair/manage menu
+        var n: SKNode? = top
+        while let cur = n, cur.name != "plot" { n = cur.parent }
+        if let plot = n as? SKShapeNode {
+            for p in plotNodes { setPlotSelected(p, selected: false) }
+            setPlotSelected(plot, selected: true)
+            selectedPlot = plot
+
+            if isPlotOccupied(plot) {
+                if let bld = building(on: plot) {
+                    let isBroken = (bld.userData?["broken"] as? Bool) ?? false
+                    if isBroken {
+                        showRepairMenu(for: bld)
+                    } else {
+                        showManageMenu(for: bld)
                     }
-                } else {
-                    showBuildMenu()
                 }
-
-                return
+            } else {
+                showBuildMenu()
             }
-
-            // Fallback — tapped empty space
-            dismissBuildMenu()
+            return
         }
+
+        // 6) Fallback — tapped empty space
+        dismissBuildMenu()
+    }
+
 
     // MARK: - Build menu (fixed layout: no overlap)
     
