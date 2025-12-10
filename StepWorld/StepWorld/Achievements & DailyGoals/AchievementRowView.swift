@@ -53,8 +53,14 @@ struct AchievementRowView: View {
                         .minimumScaleFactor(0.7)
                     
                     Text("\(row.achievement.progress) / \(row.achievement.target)")
-                        .font(.custom("Press Start 2P", size: 8))
+                        .font(.custom("Press Start 2P", size: 7))
                         .foregroundColor(pixelBrown)
+                    
+                    Text("Reward: \(row.definition.rewardCoins) coins")
+                            .font(.custom("Press Start 2P", size: 7))
+                            .foregroundColor(pixelBrown)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
