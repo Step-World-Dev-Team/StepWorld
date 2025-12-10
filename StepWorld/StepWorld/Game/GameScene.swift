@@ -603,7 +603,7 @@ final class GameScene: SKScene {
         // "top left plot" / "plot 1" → use the actual names you see in logs
         "Plot01": PlotRule(
                     allowed: ["House", "Blacksmith"],
-                    maxLevel: ["House": 2],
+                    maxLevel: ["House": 2, "Blacksmith": 3],
                     anchor: CGPoint(x: 0.50, y: 0.6),
                     perBuildingAnchor: [:]),
         "Plot02": PlotRule(
@@ -1438,12 +1438,31 @@ final class GameScene: SKScene {
         cameraNode.addChild(menu); buildMenu = menu
         
         let isDamaged = (building.userData?["damaged"] as? Bool) ?? false
+        
+        let type = (building.userData?["type"] as? String) ?? ""
+        let level = (building.userData?["level"] as? Int) ?? 1
+        let plotName = (selectedPlot?.userData?["plotName"] as? String) ?? ""
+        let maxLevel = plotRules[plotName]?.maxLevel[type] ?? Int.max
+
+        let canUpgrade = level < maxLevel
+
 
         // Layout (reuse your sizing constants)
         let infoBlockH: CGFloat = 68
-        let buttons = isDamaged
-        ? ["Repair", "Upgrade", "Sell", "Cancel"]
-        : ["Upgrade", "Sell", "Cancel"]
+        var buttons: [String] = []
+
+        if isDamaged {
+            buttons.append("Repair")
+        }
+
+        // Only show Upgrade if not max level & not damaged
+        if canUpgrade && !isDamaged {
+            buttons.append("Upgrade")
+        }
+
+        buttons.append("Sell")
+        buttons.append("Cancel")
+
         
         let buttonsBlockH = CGFloat(buttons.count) * (menuButtonH + menuGap) - menuGap
         let panelH = menuHeaderPad + titleToListGap + infoBlockH + 14 + buttonsBlockH + menuFooterPad/2
@@ -1512,7 +1531,7 @@ final class GameScene: SKScene {
         func addButton(_ label: String, action: String, isCancel: Bool = false) {
             let btn = buttonNode(
                 title: label,
-                actionName: action, // e.g. "manage:upgrade" / "manage:sell" / "cancel"
+                actionName: action,  // e.g. "manage:upgrade" / "manage:sell" / "cancel"
                 size: CGSize(width: menuButtonW, height: menuButtonH),
                 isCancel: isCancel
             )
@@ -1520,13 +1539,23 @@ final class GameScene: SKScene {
             menu.addChild(btn)
             y -= (menuButtonH + menuGap)
         }
-        
-        if (isDamaged) {
-            addButton("Repair", action: "manage:repair", isCancel: true)
+
+        // Use the computed `buttons` array to create actual buttons
+        for label in buttons {
+            switch label {
+            case "Repair":
+                addButton("Repair", action: "manage:repair")
+            case "Upgrade":
+                addButton("Upgrade", action: "manage:upgrade")
+            case "Sell":
+                addButton("Sell", action: "manage:sell")
+            case "Cancel":
+                addButton("Cancel", action: "cancel", isCancel: true)
+            default:
+                break
+            }
         }
-        addButton("Upgrade", action: "manage:upgrade")
-        addButton("Sell", action: "manage:sell")
-        addButton("Cancel", action: "cancel", isCancel: true)
+
     }
 
 

@@ -14,13 +14,14 @@ extension GameScene {
     func buildingDescription(type: String,
                              skin: String?,
                              level: Int) -> (title: String, blurb: String) {
+
         switch (type, skin) {
         case ("House", nil), ("House", "Default"):
             switch level {
             case 1:
                 return ("House – Lvl 1", "\n\nA cozy starter\nhome for new\nsettlers.\nUpgrade: $200")
             case 2:
-                return ("House – Lvl 2", "\n\nExpanded living\nspace with room for\ngrowth.\n Upgrade: $200")
+                return ("House – Lvl 2", "\n\nExpanded living\n space with room for \n  growth.\n")
             default: return ("House – Lv\(level)", "Upgraded home.")
             }
             
@@ -47,6 +48,7 @@ extension GameScene {
                 return ("Barn – Lvl 3", "\n\nA well-stocked\nbarn buzzing with\nactivity.\nUpgrade: $400")
             case 4:
                 return ("Barn – Lvl 4", "\n\nA well-stocked\n barn buzzing with \n  activity!")
+                
             default: return ("Barn – Lvl\(level)", "\n A full barn,\nthe heart of your \n growing farm!\n Upgrade: $200")
                 
             }
@@ -61,7 +63,7 @@ extension GameScene {
                         "\n\nRepainted and sturdy,ready for more animals.\nUpgrade: $300")
             case 3:
                 return ("Blue Barn – Lvl 3",
-                        "\n\nThe most stylish\n  barn in town, a\n  true farm icon.\nUpgrade: $400")
+                        "\n\nThe most stylish\n  barn in town, a\n  true farm icon.\n")
             default:
                 return ("Blue Barn – Lvl \(level)",
                         "\n\nA legendary blue barn everyone in\ntown talks about!")
