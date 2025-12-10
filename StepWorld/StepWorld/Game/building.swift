@@ -40,17 +40,22 @@ extension Building {
     }
     
     func makeSprite() -> SKSpriteNode {
-        // decide visual type based on saved skin
-
         let base = resolvedBaseName(type: type, skin: skin)
         let lvl = (level ?? 1)
-        let prefix = (broken ?? false) ? "Broken" : ""   // <- NEW
-        let name = prefix.isEmpty ? "\(base)_L\(lvl)" : "\(prefix)\(base)_L\(lvl)" // e.g. BrokenBlueBarn_L3
+        let prefix = (broken ?? false) ? "Broken" : ""
+        let name = prefix.isEmpty ? "\(base)_L\(lvl)" : "\(prefix)\(base)_L\(lvl)"
 
-        let sprite: SKSpriteNode = UIImage(named: name) != nil
-            ? SKSpriteNode(imageNamed: name)
-            : SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
-
+        // ---- CRISP TEXTURE LOADING ----
+        let sprite: SKSpriteNode
+        if UIImage(named: name) != nil {
+            let tex = SKTexture(imageNamed: name)
+            tex.filteringMode = .nearest   // 👈 CRITICAL: no blur
+            sprite = SKSpriteNode(texture: tex)
+        } else {
+            print("❌ Missing building texture '\(name)'")
+            sprite = SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
+        }
+        // --------------------------------
 
         if sprite.userData == nil { sprite.userData = [:] }
         sprite.userData?["type"]   = type
@@ -58,12 +63,13 @@ extension Building {
         sprite.userData?["skin"]   = skin ?? "Default"
         sprite.userData?["broken"] = (broken ?? false)
         if let lvl = level { sprite.userData?["level"] = lvl }
-        
+
         sprite.position = CGPoint(x: x, y: y)
         sprite.name = "building"
         sprite.zPosition = 1
         return sprite
     }
+
 }
 
 
