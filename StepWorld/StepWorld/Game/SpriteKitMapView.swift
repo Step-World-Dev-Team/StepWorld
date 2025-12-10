@@ -174,6 +174,7 @@ struct SpriteKitMapView: View {
                     .transition(.scale.combined(with: .opacity))
                     .zIndex(200) // higher than modal
                 }
+            }
                 // 🔔 Achievement banner (after change pop-up)
                 if showAchievementBanner, let currentId = pendingAchievements.first {
                     AchievementBannerView(
@@ -193,7 +194,7 @@ struct SpriteKitMapView: View {
                     }
                     .zIndex(240)
                 }
-            }
+            
             
             if isModalPresented {
                 ZStack {
@@ -308,7 +309,11 @@ struct SpriteKitMapView: View {
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                                     showSettings = false
                                 }
-                            }, onSignOut: {
+                            },
+                                onClearDecor: {
+                                map.scene.clearAllDecor()       // ← THIS calls GameScene extension
+                            },
+                                onSignOut: {
                                 Task { @MainActor in
                                     do {
                                         try AuthenticationManager.shared.signOutUser()   // ← this triggers the listener

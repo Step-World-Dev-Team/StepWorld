@@ -62,18 +62,51 @@ final class AchievementsViewModel: ObservableObject {
             
             var newRows: [Row] = []
             for doc in snap.documents {
-                do {
-                    let model = try doc.data(as: DBAchievement.self)
-                    guard let id = AchievementId(rawValue: model.id),
-                          let def = AchievementsManager.shared.definition(for: id) else {
-                        continue
-                    }
-                    newRows.append(.init(id: model.id,
-                                         achievement: model,
-                                         definition: def))
-                } catch {
-                    print("⚠️ Failed to decode DBAchievement: \(error)")
+                let data = doc.data()
+                let docId = doc.documentID
+                
+                guard let achId = AchievementId(rawValue: docId),
+                      let def = AchievementsManager.shared.definition(for: achId) else {
+                    continue
                 }
+                
+                let progress    = data["progress"] as? Int ?? 0
+                let target      = data["target"] as? Int ?? def.target
+                let isCompleted = data["isCompleted"] as? Bool ?? false
+                let isClaimed   = data["isClaimed"] as? Bool ?? false
+                
+                // Handle Date / Timestamp / String defensively
+                func parseDate(_ value: Any?) -> Date? {
+                    if let ts = value as? Timestamp {
+                        return ts.dateValue()
+                    } else if let str = value as? String {
+                        // very simple fallback parser; adjust if you have a specific format
+                        return ISO8601DateFormatter().date(from: str)
+                    } else {
+                        return nil
+                    }
+                }
+                
+                let createdAt   = parseDate(data["createdAt"]) ?? Date()
+                let updatedAt   = parseDate(data["updatedAt"]) ?? createdAt
+                let completedAt = parseDate(data["completedAt"])
+                let claimedAt   = parseDate(data["claimedAt"])
+                
+                let model = DBAchievement(
+                    id: docId,
+                    progress: progress,
+                    target: target,
+                    isCompleted: isCompleted,
+                    isClaimed: isClaimed,
+                    createdAt: createdAt,
+                    updatedAt: updatedAt,
+                    completedAt: completedAt,
+                    claimedAt: claimedAt
+                )
+                
+                newRows.append(
+                    Row(id: docId, achievement: model, definition: def)
+                )
             }
             
             // Example sort: by category / target

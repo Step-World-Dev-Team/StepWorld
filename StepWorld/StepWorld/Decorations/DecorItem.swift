@@ -32,14 +32,21 @@ public struct DecorItem: Codable {
     
     public func makeSprite() -> SKSpriteNode {
         let key = type.trimmingCharacters(in: .whitespacesAndNewlines)
+
         let node: SKSpriteNode
 
-        if UIImage(named: key) != nil {
-            node = SKSpriteNode(imageNamed: key)
+        if let uiImage = UIImage(named: key) {
+            // Create a texture with nearest-neighbor filtering (CRISP)
+            let texture = SKTexture(image: uiImage)
+            texture.filteringMode = .nearest
+            node = SKSpriteNode(texture: texture)
         } else {
             print("❌ Missing decor texture for '\(key)'. Check asset name / target membership.")
             node = SKSpriteNode(color: .red, size: CGSize(width: 28, height: 28))
-            let x = SKLabelNode(text: "X"); x.fontSize = 20; x.fontColor = .white; x.verticalAlignmentMode = .center
+            let x = SKLabelNode(text: "X")
+            x.fontSize = 20
+            x.fontColor = .white
+            x.verticalAlignmentMode = .center
             node.addChild(x)
         }
 
@@ -48,9 +55,12 @@ public struct DecorItem: Codable {
         node.setScale(scale)
         node.zPosition = 2
         node.name = "decor"
+
         if node.userData == nil { node.userData = [:] }
         node.userData?["type"] = key
+
         return node
     }
+
 }
 

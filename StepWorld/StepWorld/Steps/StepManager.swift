@@ -96,7 +96,7 @@ class StepManager: ObservableObject {
     
     // syncs data collected with database
     func syncToday() async {
-
+        
         let stepsType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
         let predicate = HKQuery.predicateForSamples(withStart: .startOfDay, end: Date())
         
@@ -133,9 +133,20 @@ class StepManager: ObservableObject {
                             date: Date(),
                             newStepCount: stepCount
                         )
+                        
+                        // update UI balance
                         DispatchQueue.main.async {
                             self.balance = outcome.balance
                         }
+                        
+                        // update achievements balance
+                        await AchievementsManager.shared.handleStepsUpdate(
+                            userId: uid,
+                            todaySteps: stepCount,
+                            lifetimeSteps: outcome.totalSteps,
+                            date: Date()
+                        )
+                        
                     } catch {
                         print("Failed to persist daily metrics: \(error)")
                     }

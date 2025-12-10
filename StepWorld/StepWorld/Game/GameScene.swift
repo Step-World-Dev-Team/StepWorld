@@ -14,7 +14,7 @@ import AVFoundation
 final class GameScene: SKScene {
 
     // MARK: - Config
-    private let tmxName = "BiggerMap"
+    private let tmxName = "EvenBiggerMap"
     private let plotLayerName = "Building"        // must match Tiled Object Layer name exactly
 
     private let minZoom: CGFloat = 0.25 // was 0.55
@@ -23,7 +23,7 @@ final class GameScene: SKScene {
 
     // Plot visuals (subtle)
     private let plotGlow: CGFloat = 6.0           // was 16 (softer)
-    private let ringScale: CGFloat = 1.02
+    private let ringScale: CGFloat = 1.2
     private let ringAlpha: CGFloat = 0.35
 
     // Camera inertia
@@ -42,7 +42,8 @@ final class GameScene: SKScene {
     private let buildingScaleOverrides: [String: CGFloat] = [
         "House": 1,
         "Barn":  1,
-        "Farm": 1
+        "Farm": 1,
+        "Blacksmith": 1
     ]
 
     // MARK: - Data
@@ -65,7 +66,7 @@ final class GameScene: SKScene {
 
     // MARK: - Build menu
     var buildMenu: SKNode?
-    private let availableBuildings = ["Barn", "House", "Farm"]
+    private let availableBuildings = ["Barn", "House", "Farm", "Blacksmith"]
     private let panelSprite  = "build_menu_background"
     private let buttonSprite = "clear_button"
     private let buttonSpriteCancel = "cancel_button"
@@ -151,7 +152,7 @@ final class GameScene: SKScene {
     }
     //requires two fingers to drag map so decorations can be moved
     private func updatePanBehaviorForPlacement() {
-        if decorManager?.isPlacing == true {
+        if decorManager?.isInteracting == true {
             panGR?.minimumNumberOfTouches = 2   // two-finger pan while placing
         } else {
             panGR?.minimumNumberOfTouches = 1   // normal map pan
@@ -248,9 +249,244 @@ final class GameScene: SKScene {
             self?.isQuakeShaking = false
         }
     }
+    
+    
+    // MARK: - NPCs
+    private var villagers: [SKSpriteNode] = []
+    private let villagerTypes = ["Villager1", "Villager2", "Villager3", "Villager4", "Villager5"]
 
+
+    // MARK: - Villagers (NPCs)
+
+    private func randomVillagerType() -> String {
+        villagerTypes.randomElement() ?? "Villager1"
+    }
+    
+    private func spawnVillager(at position: CGPoint) {
+        let type = randomVillagerType()
+
+        let texture = SKTexture(imageNamed: type)
+        texture.filteringMode = .nearest
+
+        let npc = SKSpriteNode(texture: texture)
+        npc.name = type
+        npc.zPosition = 20
+        npc.position = position
+        npc.setScale(1.2)
+
+        if npc.userData == nil { npc.userData = [:] }
+        npc.userData?["type"] = type
+        npc.userData?["dead"] = false
+
+        addChild(npc)
+        villagers.append(npc)
+
+        runVillagerPanicAnimation(npc)
+    }
 
     
+    private func spawnVillagersFromHouses(countPerHouse: Int = 5) {
+        // 1) Collect all houses first
+        let houses = buildings.filter { ($0.userData?["type"] as? String) == "House" }
+
+        // Small base gap between spawns (seconds)
+        let baseDelay: TimeInterval = 0.06   // tweak: 0.03 = tighter, 0.1 = looser
+        var index = 0
+
+        for house in houses {
+            for _ in 0..<countPerHouse {
+                // Slightly increasing delay + random jitter so it feels organic
+                let delay = baseDelay * Double(index) + Double.random(in: 0...0.12)
+
+                let spawnAction = SKAction.run { [weak self, weak house] in
+                    guard let self, let house else { return }
+
+                    // --- create villager sprite (same as before) ---
+                    let type = self.randomVillagerType()
+
+                    let villagerTexture = SKTexture(imageNamed: type)
+                    villagerTexture.filteringMode = .nearest
+                    let villager = SKSpriteNode(texture: villagerTexture)
+                    villager.zPosition = 6
+                    villager.position = CGPoint(
+                        x: house.position.x,
+                        y: house.position.y + 20
+                    )
+                    villager.setScale(1.2)
+
+                    if villager.userData == nil { villager.userData = [:] }
+                    villager.userData?["dead"] = false
+                    villager.userData?["type"] = type
+
+                    self.addChild(villager)
+                    self.villagers.append(villager)
+
+                    self.runVillagerPanicAnimation(villager)
+
+                    self.playRandomVillagerScream()
+                
+                    // --- Death logic (unchanged, but now per villager) ---
+                    let lifetime = TimeInterval.random(in: 2.0...4.5)
+                    let deadHold: TimeInterval = 1.0
+                    let fadeDuration: TimeInterval = 1.0
+
+                    let deathSequence = SKAction.sequence([
+                        .wait(forDuration: lifetime),
+                        .run { [weak self, weak villager] in
+                            guard let self, let v = villager else { return }
+
+                            if v.userData == nil { v.userData = [:] }
+                            v.userData?["dead"] = true
+                            v.removeAction(forKey: "panicMove")
+
+                            let type = (v.userData?["type"] as? String) ?? "Villager1"
+                            let deadTexture = SKTexture(imageNamed: "\(type)_dead")
+                            deadTexture.filteringMode = .nearest
+
+                            v.texture = deadTexture
+                            v.size = deadTexture.size()
+                            v.setScale(1.6)
+
+                            // 🔊 death SFX
+                            self.playRandomVillagerDeath()
+                        },
+                        .wait(forDuration: deadHold),
+                        .fadeOut(withDuration: fadeDuration),
+                        .removeFromParent()
+                    ])
+
+                    villager.run(deathSequence, withKey: "lifetime")
+                }
+
+                // 2) Schedule this villager to spawn after `delay`
+                let seq = SKAction.sequence([
+                    .wait(forDuration: delay),
+                    spawnAction
+                ])
+                self.run(seq)
+
+                index += 1
+            }
+        }
+    }
+
+
+    //debugging:
+    /*private func debugDrawIslandRect() {
+        let r = islandRect
+        let shape = SKShapeNode(rect: r)
+        shape.zPosition = 9999
+        shape.strokeColor = .red
+        shape.lineWidth = 3
+        shape.fillColor = .clear
+        shape.name = "islandDebugRect"
+        addChild(shape)
+
+        print("🟩 islandRect = \(r)")
+    }*/
+
+    
+    private var islandRect: CGRect {
+        // Use the TMX map size if we have it, else fall back to background size
+        let worldSize: CGSize = mapInfo?.pixelSize ?? background.size
+        let halfW = worldSize.width * 0.5
+        let halfH = worldSize.height * 0.5
+
+        let insetX: CGFloat = 200   // how far from left/right water to stop
+        let insetY: CGFloat = 210   // how far from bottom/top water to stop
+
+        return CGRect(
+            x: -halfW + insetX,
+            y: -halfH + insetY,
+            width: worldSize.width  - insetX * 2,
+            height: worldSize.height - insetY * 2
+        )
+    }
+
+    
+    private func randomPointInMap() -> CGPoint {
+        let r = islandRect
+        let x = CGFloat.random(in: r.minX...r.maxX)
+        let y = CGFloat.random(in: r.minY...r.maxY)
+        return CGPoint(x: x, y: y)
+    }
+
+
+    private func runVillagerPanicAnimation(_ npc: SKSpriteNode) {
+        // if already removed or marked dead, do nothing
+        if npc.parent == nil { return }
+        if (npc.userData?["dead"] as? Bool) == true { return }
+
+        guard let mapSize = mapInfo?.pixelSize ?? background?.size else { return }
+
+        let r = islandRect
+        let target = CGPoint(
+            x: CGFloat.random(in: r.minX...r.maxX),
+            y: CGFloat.random(in: r.minY...r.maxY)
+        )
+
+
+        let speed: CGFloat = 1000  // same as before or tweak
+        let dx = target.x - npc.position.x
+        let dy = target.y - npc.position.y
+        let distance = hypot(dx, dy)
+        let duration = TimeInterval(distance / speed)
+
+        // flip horizontally to face direction (optional)
+        if abs(dx) > 5 {
+            npc.xScale = dx >= 0 ? abs(npc.xScale) : -abs(npc.xScale)
+        }
+
+        let move = SKAction.move(to: target, duration: duration)
+        move.timingMode = .linear  // constant speed
+
+        let sequence = SKAction.sequence([
+            move,
+            .run { [weak self, weak npc] in
+                guard let self, let npc else { return }
+                // Only keep running if not dead
+                if (npc.userData?["dead"] as? Bool) != true {
+                    self.runVillagerPanicAnimation(npc)
+                }
+            }
+        ])
+
+        // use a key so we can stop this later
+        npc.run(sequence, withKey: "panicMove")
+    }
+
+    // MARK: - Villager SFX
+    private let villagerScreamSounds = [
+        "Scream1",
+        "Scream2",
+        "Scream3"
+        // just add more here later
+    ]
+
+    private let villagerDeathSounds = [
+        "DeathSound1",
+        "DeathSound2",
+    ]
+    
+    private func playOneShotSFX(_ name: String) {
+        // Expects `name.mp3` in the bundle
+        let action = SKAction.playSoundFileNamed("\(name).mp3", waitForCompletion: false)
+        run(action)
+    }
+
+
+    private func playRandomVillagerScream() {
+        guard let name = villagerScreamSounds.randomElement() else { return }
+        playOneShotSFX(name)
+    }
+
+
+    private func playRandomVillagerDeath() {
+        guard let name = villagerDeathSounds.randomElement() else { return }
+        playOneShotSFX(name)
+    }
+
+
     // MARK: - Scene lifecycle
     override func didMove(to view: SKView) {
         // Run setup only once per scene instance
@@ -261,11 +497,15 @@ final class GameScene: SKScene {
         backgroundColor = .black
 
         // Background (gets resized to TMX map so overlays align)
-        background = SKSpriteNode(imageNamed: "FarmBackground")
+        let bgTexture = SKTexture(imageNamed: "EvenBiggerMap")
+        bgTexture.filteringMode = .nearest      // 👈 crisp, no blur
+
+        background = SKSpriteNode(texture: bgTexture)
         background.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         background.position = .zero
         background.zPosition = -10
         addChild(background)
+
         
         // start background music
         configureAudioSession()
@@ -326,6 +566,9 @@ final class GameScene: SKScene {
             view.addGestureRecognizer(hover)
             self.hoverGR = hover
         }
+        
+        //debugging:
+        //debugDrawIslandRect()
     }
     
     // When the scene is about to leave a view, clean up recognizers so we don't duplicate them later.
@@ -359,8 +602,8 @@ final class GameScene: SKScene {
         // Example names match what you assign in TMX or in buildDebugPlots()
         // "top left plot" / "plot 1" → use the actual names you see in logs
         "Plot01": PlotRule(
-                    allowed: ["House"],
-                    maxLevel: ["House": 2],
+                    allowed: ["House", "Blacksmith"],
+                    maxLevel: ["House": 2, "Blacksmith": 3],
                     anchor: CGPoint(x: 0.50, y: 0.6),
                     perBuildingAnchor: [:]),
         "Plot02": PlotRule(
@@ -369,10 +612,10 @@ final class GameScene: SKScene {
             anchor: CGPoint(x: 0.5, y: 0.5),
             perBuildingAnchor: ["Barn": CGPoint(x: 0.55, y: 0.55)]),
         "Plot03": PlotRule(
-                    allowed: ["Barn", "House"],
-                    maxLevel: ["Barn": 4, "House": 2],
+                    allowed: ["Barn", "House", "Farm"],
+                    maxLevel: ["Barn": 4, "House": 2, "Farm": 4],
                     anchor: CGPoint(x: 0.5, y: 0.5),
-                    perBuildingAnchor: ["Barn": CGPoint(x: 0.50, y: 0.55)])
+                    perBuildingAnchor: ["Barn": CGPoint(x: 0.5, y: 0.55), "Farm": CGPoint(x: 0.55, y: 0.75)])
         // Add more as needed...
     ]
     
@@ -388,8 +631,8 @@ final class GameScene: SKScene {
 
         // Convert normalized anchor → local offset from center:
         // (0.5,0.5) is center → (0,0) offset. (1,1) is top-right → (+halfW,+halfH)
-        let halfW = size.width * 0.5
-        let halfH = size.height * 0.5
+        let halfW = size.width * 0.5 * ringScale
+        let halfH = size.height * 0.5 * ringScale
         let local = CGPoint(
             x: (anchor.x - 0.5) * (size.width),
             y: (anchor.y - 0.5) * (size.height)
@@ -587,6 +830,7 @@ final class GameScene: SKScene {
         }
 
         let tex = SKTexture(imageNamed: "PlotCorner") // your bracket image in Assets
+        tex.filteringMode = .nearest
         let container = SKNode()
         container.name = "cornerBrackets"
         container.zPosition = 999
@@ -605,8 +849,9 @@ final class GameScene: SKScene {
             return n
         }
 
-        let halfW = size.width  * 0.5
-        let halfH = size.height * 0.5
+        let halfW = size.width  * 0.5 * ringScale
+        let halfH = size.height * 0.5 * ringScale
+        
         let inset: CGFloat = 2
 
         let tl = makeCorner(x: -halfW + inset, y:  halfH - inset, flipX: false, flipY: true)
@@ -715,7 +960,7 @@ final class GameScene: SKScene {
     //makes ghost follow cursor
     @available(iOS 13.4, *)
     @objc private func hoverMoved(_ sender: UIHoverGestureRecognizer) {
-        guard decorManager?.isPlacing == true, let view = self.view else { return }
+        guard decorManager?.isInteracting == true, let view = self.view else { return }
         let pView  = sender.location(in: view)
         let pScene = convertPoint(fromView: pView)
         switch sender.state {
@@ -836,15 +1081,15 @@ final class GameScene: SKScene {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         // If we're placing decor, a simple click should move the ghost to the cursor immediately.
-        if let t = touches.first, decorManager?.isPlacing == true {
+        if let t = touches.first, decorManager?.isInteracting == true {
             decorManager?.movePreview(to: t.location(in: self))
         }
         super.touchesBegan(touches, with: event)
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // Optional: keep this if you still want drag-to-aim during placement.
-        if let t = touches.first, decorManager?.isPlacing == true {
+        
+        if let t = touches.first, decorManager?.isInteracting == true {
             decorManager?.movePreview(to: t.location(in: self))
         }
         super.touchesMoved(touches, with: event)
@@ -855,52 +1100,74 @@ final class GameScene: SKScene {
         let loc = t.location(in: self)
         let tapped = nodes(at: loc)
         let top = atPoint(loc)
-        
-        
 
-        //If currently placing décor: single tap = try to place here
-        if decorManager?.isPlacing == true {
-            if decorManager?.confirmPlacement(at: loc) == true {
+        // 0) If tap is on an open menu, handle ONLY the menu and bail out
+        if let menu = buildMenu, top.inParentHierarchy(menu) {
+            if handleManageMenuTap(tapped) || handleBuildMenuTap(tapped) {
+                return
+            }
+            // Even if no button was hit, don't let the tap fall through to decor/plots
+            return
+        }
+
+        // 1) If currently moving decor: drop it here
+        if decorManager?.isMoving == true {
+            if decorManager?.confirmMove(at: loc) == true {
                 updatePanBehaviorForPlacement()
                 triggerMapChanged()
             }
-                return
+            return
         }
-            if let menu = buildMenu, top.inParentHierarchy(menu) {
-                    if handleManageMenuTap(tapped) || handleBuildMenuTap(tapped) { return }
-                    return // swallow taps on menu background — don’t open build menu
-                }
-        // 🚫 Ignore taps on the "For Sale" sign (and anything inside it)
+
+        // 2) If currently placing decor: tap = try place here
+        if decorManager?.isPlacing == true {
+            let placed = decorManager?.confirmPlacement(at: loc) ?? false
+            if placed {
+                updatePanBehaviorForPlacement()
+                triggerMapChanged()
+            }
+            return
+        }
+
+        // 3) Not in decor mode; tap on decor starts moving that decor
+        if let decor = tapped.first(where: { $0.name == "decor" }) as? SKSpriteNode {
+            decorManager?.beginMove(node: decor)
+            updatePanBehaviorForPlacement()
+            return
+        }
+
+        // 4) Ignore taps on For Sale sign
         var s: SKNode? = top
         while let cur = s, cur.name != "forSaleSign" { s = cur.parent }
         if s?.name == "forSaleSign" { return }
-        
-        // Only react if the TOPMOST hit is a plot (or inside one)
-            var n: SKNode? = top
-            while let cur = n, cur.name != "plot" { n = cur.parent }
-            if let plot = n as? SKShapeNode {
-                for p in plotNodes { setPlotSelected(p, selected: false) }
-                setPlotSelected(plot, selected: true)
-                selectedPlot = plot
-                if isPlotOccupied(plot) {
-                    if let bld = building(on: plot) {
-                        let isBroken = (bld.userData?["broken"] as? Bool) ?? false
-                        if isBroken {
-                            showRepairMenu(for: bld)   // <- NEW
-                        } else {
-                            showManageMenu(for: bld)   // existing
-                        }
+
+        // 5) Plot selection / build/repair/manage menu
+        var n: SKNode? = top
+        while let cur = n, cur.name != "plot" { n = cur.parent }
+        if let plot = n as? SKShapeNode {
+            for p in plotNodes { setPlotSelected(p, selected: false) }
+            setPlotSelected(plot, selected: true)
+            selectedPlot = plot
+
+            if isPlotOccupied(plot) {
+                if let bld = building(on: plot) {
+                    let isBroken = (bld.userData?["broken"] as? Bool) ?? false
+                    if isBroken {
+                        showRepairMenu(for: bld)
+                    } else {
+                        showManageMenu(for: bld)
                     }
-                } else {
-                    showBuildMenu()
                 }
-
-                return
+            } else {
+                showBuildMenu()
             }
-
-            // Fallback — tapped empty space
-            dismissBuildMenu()
+            return
         }
+
+        // 6) Fallback — tapped empty space
+        dismissBuildMenu()
+    }
+
 
     // MARK: - Build menu (fixed layout: no overlap)
     
@@ -973,7 +1240,7 @@ final class GameScene: SKScene {
         let totalHeight = CGFloat(allowed.count - 1) * lineSpacing
 
         for (index, name) in allowed.enumerated() {
-            let base = baseName(from: name)                // you already have baseName(from:)
+            let base = baseName(from: name)
             let preview = buildPreviewDescription(for: base)
 
             let label = SKLabelNode(text: "\(base): \(preview)")
@@ -1171,12 +1438,31 @@ final class GameScene: SKScene {
         cameraNode.addChild(menu); buildMenu = menu
         
         let isDamaged = (building.userData?["damaged"] as? Bool) ?? false
+        
+        let type = (building.userData?["type"] as? String) ?? ""
+        let level = (building.userData?["level"] as? Int) ?? 1
+        let plotName = (selectedPlot?.userData?["plotName"] as? String) ?? ""
+        let maxLevel = plotRules[plotName]?.maxLevel[type] ?? Int.max
+
+        let canUpgrade = level < maxLevel
+
 
         // Layout (reuse your sizing constants)
         let infoBlockH: CGFloat = 68
-        let buttons = isDamaged
-        ? ["Repair", "Upgrade", "Sell", "Cancel"]
-        : ["Upgrade", "Sell", "Cancel"]
+        var buttons: [String] = []
+
+        if isDamaged {
+            buttons.append("Repair")
+        }
+
+        // Only show Upgrade if not max level & not damaged
+        if canUpgrade && !isDamaged {
+            buttons.append("Upgrade")
+        }
+
+        buttons.append("Sell")
+        buttons.append("Cancel")
+
         
         let buttonsBlockH = CGFloat(buttons.count) * (menuButtonH + menuGap) - menuGap
         let panelH = menuHeaderPad + titleToListGap + infoBlockH + 14 + buttonsBlockH + menuFooterPad/2
@@ -1205,8 +1491,8 @@ final class GameScene: SKScene {
         let info = buildingDescription(type: bType, skin:skin, level: bLevel)
         // Background for info
             let infoBG = SKShapeNode(rectOf: CGSize(width: panelWidth - 40, height: infoBlockH), cornerRadius: 10)
-            infoBG.strokeColor = UIColor.white.withAlphaComponent(0.35)
-            infoBG.lineWidth = 1
+        infoBG.strokeColor = .clear
+            infoBG.lineWidth = 0
             infoBG.position = CGPoint(x: 0, y: title.position.y - 40)
             infoBG.zPosition = 1
             menu.addChild(infoBG)
@@ -1245,7 +1531,7 @@ final class GameScene: SKScene {
         func addButton(_ label: String, action: String, isCancel: Bool = false) {
             let btn = buttonNode(
                 title: label,
-                actionName: action, // e.g. "manage:upgrade" / "manage:sell" / "cancel"
+                actionName: action,  // e.g. "manage:upgrade" / "manage:sell" / "cancel"
                 size: CGSize(width: menuButtonW, height: menuButtonH),
                 isCancel: isCancel
             )
@@ -1253,13 +1539,23 @@ final class GameScene: SKScene {
             menu.addChild(btn)
             y -= (menuButtonH + menuGap)
         }
-        
-        if (isDamaged) {
-            addButton("Repair", action: "manage:repair", isCancel: true)
+
+        // Use the computed `buttons` array to create actual buttons
+        for label in buttons {
+            switch label {
+            case "Repair":
+                addButton("Repair", action: "manage:repair")
+            case "Upgrade":
+                addButton("Upgrade", action: "manage:upgrade")
+            case "Sell":
+                addButton("Sell", action: "manage:sell")
+            case "Cancel":
+                addButton("Cancel", action: "cancel", isCancel: true)
+            default:
+                break
+            }
         }
-        addButton("Upgrade", action: "manage:upgrade")
-        addButton("Sell", action: "manage:sell")
-        addButton("Cancel", action: "cancel", isCancel: true)
+
     }
 
 
@@ -1305,8 +1601,10 @@ final class GameScene: SKScene {
         
         let sprite: SKSpriteNode
 
-        if UIImage(named: fullName) != nil {
-            sprite = SKSpriteNode(imageNamed: fullName)
+        if let image = UIImage(named: fullName) {
+            let tex = SKTexture(image: image)
+            tex.filteringMode = .nearest
+            sprite = SKSpriteNode(texture: tex)
         } else {
             sprite = SKSpriteNode(color: .systemGreen, size: CGSize(width: 32, height: 32))
             print("⚠️ Asset '\(fullName)' not found. Using placeholder.")
@@ -1399,8 +1697,10 @@ final class GameScene: SKScene {
             
             
             if let newImage = UIImage(named: newTextureName) {
-                building.texture = SKTexture(imageNamed: newTextureName)
-                building.size = building.texture!.size()
+                let tex = SKTexture(imageNamed: newTextureName)
+                tex.filteringMode = .nearest
+                building.texture = tex
+                building.size = tex.size()
                 building.userData?["level"] = nextLevel
                 print("\(type) upgraded to level \(nextLevel)")
                 triggerMapChanged()
@@ -1456,6 +1756,16 @@ final class GameScene: SKScene {
             attachForSaleSign(to: plot, plotSize: size)
         }
     }
+    
+    // MARK: - Server skin state bridge
+    func applySkinStateFromServer(owned: Set<String>, equipped: [String:String]) {
+        ownedSkins = owned
+        equippedSkinForType = equipped
+
+        for (base, skin) in equipped {
+            applySkinToAllBuildings(of: base, skin: skin)
+        }
+    }
 
 
     // MARK: - MapManager helpers
@@ -1506,7 +1816,9 @@ final class GameScene: SKScene {
             let baseBuildingScale: CGFloat = 0.6
             let buildingScaleOverrides: [String: CGFloat] = [
                 "House": 1,
-                "Barn":  1
+                "Barn":  1,
+                "Farm": 1,
+                "Blacksmith": 1
             ]
             let scale = buildingScaleOverrides[m.type] ?? baseBuildingScale
             sprite.setScale(scale)
@@ -1514,6 +1826,22 @@ final class GameScene: SKScene {
             addBuilding(sprite)
         }
         print("✅ Loaded \(models.count) buildings into scene.")
+        
+        for plot in plotNodes {
+            let occupied = isPlotOccupied(plot)
+
+            if occupied {
+                // Remove sign if there is a building on this plot
+                plot.childNode(withName: "forSaleSign")?.removeFromParent()
+            } else {
+                // Add sign if empty and sign missing
+                if plot.childNode(withName: "forSaleSign") == nil {
+                    let size = (plot.userData?["plotSize"] as? NSValue)?.cgSizeValue
+                        ?? (plot.path?.boundingBox.size ?? .zero)
+                    attachForSaleSign(to: plot, plotSize: size)
+                }
+            }
+        }
     }
     
     // determines amount that will be refunded based on level
@@ -1531,6 +1859,8 @@ final class GameScene: SKScene {
             return 300
         case "Farm":
             return 200
+        case "Blacksmith":
+            return 300
         default:
             return 100
         }
@@ -1543,11 +1873,13 @@ final class GameScene: SKScene {
     private func buildPreviewDescription(for baseType: String) -> String {
         switch baseType {
         case "House":
-            return "Cost $200"
+            return "$200"
         case "Barn":
-            return "Cost $300"
+            return "$300"
         case "Farm":
-            return "Grows crops to earn more coins."
+            return "$200"
+        case "Blacksmith":
+            return "$300"
         default:
             return "A new building for your town."
         }
@@ -1562,6 +1894,12 @@ final class GameScene: SKScene {
         }
     }
 
+    private func crispTexture(named name: String) -> SKTexture {
+        let tex = SKTexture(imageNamed: name)
+        tex.filteringMode = .nearest
+        return tex
+    }
+    
     private func textureName(for node: SKSpriteNode, broken: Bool? = nil) -> String? {
         let type  = (node.userData?["type"] as? String) ?? ""
         let skin  = (node.userData?["skin"] as? String)
@@ -1576,14 +1914,17 @@ final class GameScene: SKScene {
     private func applyTexture(_ node: SKSpriteNode, broken: Bool? = nil) {
         let isBroken = broken ?? ((node.userData?["broken"] as? Bool) ?? false)
         if let name = textureName(for: node, broken: isBroken) {
-            node.texture = SKTexture(imageNamed: name)
-            node.size    = node.texture!.size()
+            let tex = crispTexture(named: name)          // 👈 use helper
+            node.texture = tex
+            node.size    = tex.size()
             if node.userData == nil { node.userData = [:] }
             node.userData?["broken"] = isBroken
         } else {
-            print("⚠️ Missing texture for \(String(describing: node.userData?["type"])) level \(String(describing: node.userData?["level"])) broken=\(isBroken)")
+            print("⚠️ Missing texture for \(String(describing: node.userData?["type"])) " +
+                  "level \(String(describing: node.userData?["level"])) broken=\(isBroken)")
         }
     }
+
 
     // One-off breakers/repairers
     private func breakBuilding(_ node: SKSpriteNode) {
@@ -1602,6 +1943,10 @@ final class GameScene: SKScene {
                            affectAlreadyBroken: Bool = false) {
         // 1) Shake camera/SFX (existing)
         triggerEarthquakeShake(duration: duration)
+        
+        run(.wait(forDuration: 1.0)) {
+            self.spawnVillagersFromHouses()
+        }
 
         // 2) After shake settles, damage buildings
         let settleDelay = duration + 0.1
@@ -1647,8 +1992,9 @@ final class GameScene: SKScene {
 
         let texName = isBroken ? "Broken\(resolved)_L\(level)" : "\(resolved)_L\(level)"
         if UIImage(named: texName) != nil {
-            node.texture = SKTexture(imageNamed: texName)
-            node.size = node.texture!.size()
+            let tex = crispTexture(named: texName)
+            node.texture = tex
+            node.size = tex.size()
         } else {
             print("⚠️ Missing texture \(texName)")
         }
@@ -1733,9 +2079,17 @@ extension GameScene {
     func applyLoadedDecor(_ models: [DecorItem]) {
         decorManager.applyLoadedDecor(models)
     }
+    /// Remove all decorations from the scene and notify the map manager
+        func clearAllDecor() {
+            // This removes all existing decor nodes & internal state
+            decorManager.applyLoadedDecor([])
+
+            // Reuse your existing save hook so the DB sees "no decor"
+            triggerMapChanged()
+        }
 }
 
-//MARK: Earthquak functions
+//MARK: Earthquake functions
 extension GameScene {
     func applyEarthquakeDamage() {
         for node in buildings {
@@ -1747,8 +2101,9 @@ extension GameScene {
             let level = (node.userData?["level"] as? Int)
             let tex = textureName(baseType: type, skin: skin, level: level, damaged: true)
             if UIImage(named: tex) != nil {
-                node.texture = SKTexture(imageNamed: tex)
-                node.size = node.texture!.size()
+                let t = crispTexture(named: tex)
+                node.texture = t
+                node.size = t.size()
             }
         }
         triggerMapChanged()              // will persist via MapManager
